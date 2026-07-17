@@ -1,0 +1,49 @@
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ['CMD', 'mongosh', '--quiet', '--eval', "db.runCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # Not published to the host by default; only the backend reaches it.
+    expose:
+      - '27017'
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      mongo:
+        condition: service_healthy
+    environment:
+      ENVIRONMENT: production
+      MOCK_DB: 'false'
+      MONGO_URL: mongodb://mongo:27017
+      MONGO_DB_NAME: task_tracker
+      SEED_ON_STARTUP: 'true'
+      MOCK_AUTH: 'true' # set false + provide GOOGLE_CLIENT_ID/SECRET to use real Google OAuth
+      MOCK_WEATHER: 'true' # set false + ACCUWEATHER_API_KEY to use live weather
+      MOCK_HISTORY: 'true'
+      JWT_SECRET: ${JWT_SECRET:-change_me_in_production}
+      FRONTEND_URL: http://localhost:8080
+      CORS_ORIGINS: http://localhost:8080,http://localhost
+    expose:
+      - '8000'
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE_URL: /api/v1
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - '8080:80' # open http://localhost:8080
+
+volumes:
+  mongo_data:

@@ -1,0 +1,65 @@
+/** @type {import('tailwindcss').Config} */
+export default {
+  darkMode: 'class',
+  content: ['./index.html', './src/**/*.{js,jsx}'],
+  theme: {
+    extend: {
+      fontFamily: {
+        sans: ['Inter', 'system-ui', 'sans-serif'],
+        display: ['Poppins', 'Inter', 'sans-serif'],
+      },
+      colors: {
+        brand: {
+          50: '#f2efff',
+          100: '#e6e0ff',
+          200: '#cfc2ff',
+          300: '#b09bff',
+          400: '#9576ff',
+          500: '#7c5cff',
+          600: '#6a3ff2',
+          700: '#5a2fd4',
+          800: '#4a28ab',
+          900: '#3d2589',
+        },
+        sev: {
+          critical: '#ef4444',
+          high: '#f59e0b',
+          low: '#22c55e',
+        },
+      },
+      backgroundImage: {
+        'grad-brand': 'linear-gradient(135deg,#7c5cff 0%,#4f8cff 100%)',
+        'grad-red': 'linear-gradient(135deg,#ff6a6a 0%,#e11d48 100%)',
+        'grad-yellow': 'linear-gradient(135deg,#ffd36e 0%,#f59e0b 100%)',
+        'grad-blue': 'linear-gradient(135deg,#7fd6ff 0%,#4f8cff 100%)',
+        'grad-green': 'linear-gradient(135deg,#8ff0a4 0%,#22c55e 100%)',
+      },
+      boxShadow: {
+        glass: '0 8px 32px rgba(31,38,135,0.15)',
+        'glass-lg': '0 12px 48px rgba(31,38,135,0.22)',
+      },
+      borderRadius: {
+        xl2: '1rem',
+        '2xl': '1.25rem',
+      },
+      keyframes: {
+        'fade-up': {
+          '0%': { opacity: '0', transform: 'translateY(12px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
+        'pulse-red': {
+          '0%,100%': { boxShadow: '0 0 0 0 rgba(239,68,68,0.35)' },
+          '50%': { boxShadow: '0 0 0 6px rgba(239,68,68,0)' },
+        },
+        shimmer: {
+          '100%': { transform: 'translateX(100%)' },
+        },
+      },
+      animation: {
+        'fade-up': 'fade-up 0.5s ease forwards',
+        'pulse-red': 'pulse-red 2s ease-in-out infinite',
+      },
+    },
+  },
+  plugins: [],
+}

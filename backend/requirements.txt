@@ -1,0 +1,28 @@
+# --- Core web framework ---
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+python-multipart==0.0.19
+
+# --- Data / MongoDB ---
+motor==3.6.0
+pymongo==4.9.2
+mongomock-motor==0.0.34          # in-memory Motor-compatible client for MOCK_DB mode
+
+# --- Validation / settings ---
+pydantic==2.10.4
+pydantic-settings==2.7.0
+email-validator==2.2.0
+
+# --- Auth ---
+python-jose[cryptography]==3.3.0
+google-auth==2.37.0              # real Google OAuth id_token verification (optional path)
+
+# --- Outbound HTTP (AccuWeather / On-This-Day) ---
+httpx==0.28.1
+
+# --- Scheduling (reminders) ---
+apscheduler==3.11.0
+
+# --- Tests ---
+pytest==8.3.4
+pytest-asyncio==0.25.0

@@ -1,0 +1,130 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  @apply bg-slate-50 text-slate-800 antialiased;
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+.dark body {
+  @apply bg-[#0b1020] text-slate-100;
+}
+
+/* App background: soft animated gradient blobs */
+.app-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+}
+.app-bg::before,
+.app-bg::after {
+  content: '';
+  position: absolute;
+  width: 42rem;
+  height: 42rem;
+  border-radius: 9999px;
+  filter: blur(90px);
+  opacity: 0.35;
+}
+.app-bg::before {
+  background: radial-gradient(circle at 30% 30%, #7c5cff, transparent 60%);
+  top: -12rem;
+  left: -10rem;
+}
+.app-bg::after {
+  background: radial-gradient(circle at 70% 70%, #4f8cff, transparent 60%);
+  bottom: -14rem;
+  right: -12rem;
+}
+
+@layer components {
+  .glass {
+    @apply bg-white/70 dark:bg-white/[0.06] backdrop-blur-xl border border-white/40 dark:border-white/10 shadow-glass;
+  }
+  .glass-card {
+    @apply glass rounded-2xl;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition
+           focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-2
+           disabled:opacity-50 disabled:cursor-not-allowed;
+    min-height: 44px;
+  }
+  .btn-primary {
+    @apply btn text-white bg-grad-brand shadow-lg shadow-brand-500/30 hover:brightness-110 active:scale-[0.98];
+  }
+  .btn-ghost {
+    @apply btn text-slate-700 dark:text-slate-200 bg-white/60 dark:bg-white/5 border border-white/50 dark:border-white/10 hover:bg-white/80;
+  }
+  .input {
+    @apply w-full rounded-xl border border-slate-200 dark:border-white/10 bg-white/80 dark:bg-white/5
+           px-3.5 py-2.5 text-sm outline-none transition
+           focus:border-brand-400 focus:ring-2 focus:ring-brand-200 dark:focus:ring-brand-500/30;
+    min-height: 44px;
+  }
+  .label {
+    @apply block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1.5;
+  }
+  .chip {
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold;
+  }
+}
+
+/* Skeleton shimmer */
+.skeleton {
+  @apply relative overflow-hidden rounded-lg bg-slate-200/70 dark:bg-white/10;
+}
+.skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.45), transparent);
+  animation: shimmer 1.4s infinite;
+}
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* Subtle blinking for past-due cards (respects reduced motion) */
+.blink-red {
+  animation: blinkred 2.6s ease-in-out infinite;
+}
+@keyframes blinkred {
+  0%,
+  100% {
+    background-color: rgba(239, 68, 68, 0.08);
+  }
+  50% {
+    background-color: rgba(239, 68, 68, 0.18);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .blink-red {
+    animation: none;
+    background-color: rgba(239, 68, 68, 0.1);
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-slate-300/70 dark:bg-white/10 rounded-full;
+}
