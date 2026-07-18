@@ -21,6 +21,51 @@ export default function Login() {
     api.get('/auth/config').then((r) => setCfg(r.data)).catch(() => {})
   }, [])
 
+  // Real Google Sign-In (Google Identity Services) — active once the backend
+  // reports a configured Client ID (MOCK_AUTH=false + GOOGLE_CLIENT_ID set).
+  useEffect(() => {
+    const clientId = cfg?.google_client_id
+    if (!clientId || cfg?.mock_auth) return
+    const onLoad = () => {
+      if (!window.google?.accounts?.id) return
+      window.google.accounts.id.initialize({
+        client_id: clientId,
+        callback: async (resp) => {
+          setBusy(true)
+          try {
+            await googleLogin(resp.credential)
+            navigate('/', { replace: true })
+          } catch {
+            toast.error('Google login failed')
+          } finally {
+            setBusy(false)
+          }
+        },
+      })
+      const el = document.getElementById('google-btn')
+      if (el) {
+        el.innerHTML = ''
+        window.google.accounts.id.renderButton(el, {
+          theme: 'outline',
+          size: 'large',
+          width: 320,
+          text: 'continue_with',
+        })
+      }
+    }
+    if (document.getElementById('gsi-script')) {
+      onLoad()
+      return
+    }
+    const s = document.createElement('script')
+    s.src = 'https://accounts.google.com/gsi/client'
+    s.async = true
+    s.defer = true
+    s.id = 'gsi-script'
+    s.onload = onLoad
+    document.body.appendChild(s)
+  }, [cfg, googleLogin, navigate])
+
   const handleDemo = async () => {
     setBusy(true)
     try {
@@ -69,14 +114,18 @@ export default function Login() {
           </div>
         </div>
 
-        <button
-          onClick={handleDemo}
-          disabled={busy}
-          className="btn w-full gap-3 border border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-white"
-        >
-          <GoogleIcon />
-          Continue with Google
-        </button>
+        {cfg?.google_client_id && !cfg?.mock_auth ? (
+          <div id="google-btn" className="flex justify-center" />
+        ) : (
+          <button
+            onClick={handleDemo}
+            disabled={busy}
+            className="btn w-full gap-3 border border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-white"
+          >
+            <GoogleIcon />
+            Continue with Google
+          </button>
+        )}
 
         {cfg?.mock_auth && (
           <>

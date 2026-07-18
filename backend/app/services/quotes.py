@@ -1,7 +1,23 @@
-"""Motivational quotes — a curated built-in set, random per call."""
+"""Motivational quotes.
 
+Live quotes come from **ZenQuotes** (https://zenquotes.io/) — free and keyless.
+Set ``MOCK_QUOTES=false`` to go live; a curated built-in set is always used as a
+fallback (and when rate-limited), so the banner never breaks.
+"""
+
+from __future__ import annotations
+
+import logging
 import random
-from typing import Dict
+from typing import Dict, Optional
+
+import httpx
+
+from ..config import settings
+
+logger = logging.getLogger("task_tracker.quotes")
+
+ZENQUOTES_URL = "https://zenquotes.io/api/random"
 
 QUOTES = [
     ("Time is the one thing you can never earn back. Spend it wisely.", "Unknown", "time"),
@@ -27,7 +43,34 @@ QUOTES = [
 ]
 
 
-def random_quote(exclude: str | None = None) -> Dict[str, str]:
+def random_quote(exclude: Optional[str] = None) -> Dict[str, str]:
+    """A random quote from the curated built-in set (also the live fallback)."""
     pool = [q for q in QUOTES if q[0] != exclude] or QUOTES
     text, author, category = random.choice(pool)
     return {"text": text, "author": author, "category": category}
+
+
+async def get_random_quote(exclude: Optional[str] = None) -> Dict[str, str]:
+    """Live quote from ZenQuotes; falls back to the curated set on any issue."""
+    if not settings.mock_quotes:
+        try:
+            async with httpx.AsyncClient(timeout=8, follow_redirects=True) as client:
+                resp = await client.get(ZENQUOTES_URL)
+                resp.raise_for_status()
+                data = resp.json()
+            item = data[0] if isinstance(data, list) and data else {}
+            text = (item.get("q") or "").strip()
+            author = (item.get("a") or "Unknown").strip()
+            # ZenQuotes returns a 200 "Too many requests" placeholder when
+            # rate-limited — treat that (and empties) as a miss.
+            if (
+                text
+                and text != exclude
+                and author.lower() != "zenquotes.io"
+                and "too many requests" not in text.lower()
+            ):
+                return {"text": text, "author": author, "category": ""}
+        except Exception as exc:
+            logger.warning("ZenQuotes failed (%s); serving curated quote.", exc)
+
+    return random_quote(exclude)

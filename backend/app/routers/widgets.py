@@ -18,7 +18,7 @@ router = APIRouter(tags=["widgets"])
 
 @router.get("/quotes/random", response_model=Quote)
 async def random_quote(exclude: Optional[str] = None):
-    return Quote(**quotes_service.random_quote(exclude=exclude))
+    return Quote(**await quotes_service.get_random_quote(exclude=exclude))
 
 
 @router.get("/weather", response_model=WeatherResponse)

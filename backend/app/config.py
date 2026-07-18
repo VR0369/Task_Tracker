@@ -53,8 +53,11 @@ class Settings(BaseSettings):
     # constants in app/services/weather.py, so there is nothing else to set.
     mock_weather: bool = True
 
-    # --- On This Day ---
+    # --- On This Day (byabbe.se, keyless) ---
     mock_history: bool = True
+
+    # --- Quotes (ZenQuotes, keyless) ---
+    mock_quotes: bool = True
 
     # --- Rate limiting (simple in-memory) ---
     rate_limit_requests: int = 240

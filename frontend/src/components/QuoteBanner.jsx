@@ -30,7 +30,10 @@ export default function QuoteBanner() {
                   “{data?.text}”
                 </p>
                 <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-                  — {data?.author} · <span className="capitalize">{data?.category}</span>
+                  — {data?.author}
+                  {data?.category && (
+                    <> · <span className="capitalize">{data.category}</span></>
+                  )}
                 </p>
               </motion.div>
             </AnimatePresence>

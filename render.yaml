@@ -1,9 +1,10 @@
 # Render Blueprint — one Docker web service that serves the API and the SPA.
 # Deploy: Render Dashboard → New → Blueprint → connect this repo → Apply.
 #
-# Uses a real MongoDB (Atlas) for persistence and live keyless weather
-# (Open-Meteo). Auth and on-this-day stay mocked, so the only credential you must
-# supply is MONGO_URL. Render prompts for it on Apply (sync: false), out of git.
+# Uses a real MongoDB (Atlas) for persistence and live keyless data (weather via
+# Open-Meteo, on-this-day via byabbe.se, quotes via ZenQuotes). Only auth stays
+# mocked, so the only credential you must supply is MONGO_URL. Render prompts for
+# it on Apply (sync: false), out of git. To enable real Google login, see below.
 services:
   - type: web
     name: orbit-task-tracker
@@ -32,10 +33,17 @@ services:
       # it on; if the provider is unreachable it falls back to mock automatically.
       - key: MOCK_WEATHER
         value: "false"
-      # --- Still mocked (no external keys needed) ---
-      - key: MOCK_AUTH
-        value: "true"
+      # --- On This Day (byabbe.se) + Quotes (ZenQuotes) — live, keyless ---
       - key: MOCK_HISTORY
+        value: "false"
+      - key: MOCK_QUOTES
+        value: "false"
+      # --- Auth ---
+      # Mocked by default (dev login). For real Google Sign-In, set MOCK_AUTH=false
+      # and add these three in the Render dashboard (create an OAuth 2.0 Client ID
+      # at https://console.cloud.google.com/apis/credentials):
+      #   GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI
+      - key: MOCK_AUTH
         value: "true"
       # Render generates a strong secret and keeps it stable across deploys.
       - key: JWT_SECRET
