@@ -6,6 +6,7 @@ import { useAuth } from '../auth/AuthContext.jsx'
 import Modal from './Modal.jsx'
 import WeatherDetail from './WeatherDetail.jsx'
 import { conditionIcon, AQI_LEVELS, tempOf } from '../utils/weather'
+import { dayjs } from '../utils/format'
 
 const UNIT_KEY = 'orbit.weather.units'
 
@@ -215,11 +216,13 @@ export default function WeatherWidget() {
           <button onClick={savePreferred} className="mt-2 w-full text-xs text-brand-600 hover:underline">
             Save as preferred location
           </button>
-          {data?.is_mock && (
-            <p className="mt-1 text-center text-[10px] text-slate-400">
-              Sample data — add a WeatherAPI key to go live
-            </p>
-          )}
+          <p className="mt-1 text-center text-[10px] text-slate-400">
+            {data?.is_mock
+              ? 'Showing sample data — live weather unavailable'
+              : data?.last_updated || data?.localtime
+              ? `Updated ${dayjs(data.last_updated || data.localtime).format('h:mm A')}`
+              : ''}
+          </p>
         </motion.div>
       )}
 

@@ -48,12 +48,10 @@ class Settings(BaseSettings):
     google_client_secret: str = ""
     google_redirect_uri: str = "http://localhost:5173/auth/callback"
 
-    # --- Weather (WeatherAPI.com primary; AccuWeather kept for the legacy path) ---
+    # --- Weather (Open-Meteo — keyless, no API key required) ---
+    # MOCK_WEATHER=false enables live Open-Meteo data; provider URLs are
+    # constants in app/services/weather.py, so there is nothing else to set.
     mock_weather: bool = True
-    weatherapi_api_key: str = ""
-    weatherapi_base_url: str = "https://api.weatherapi.com/v1"
-    accuweather_api_key: str = ""
-    accuweather_base_url: str = "https://dataservice.accuweather.com"
 
     # --- On This Day ---
     mock_history: bool = True

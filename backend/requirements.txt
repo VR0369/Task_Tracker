@@ -17,7 +17,7 @@ email-validator==2.2.0
 python-jose[cryptography]==3.3.0
 google-auth==2.37.0              # real Google OAuth id_token verification (optional path)
 
-# --- Outbound HTTP (AccuWeather / On-This-Day) ---
+# --- Outbound HTTP (Open-Meteo weather / On-This-Day) ---
 httpx==0.28.1
 
 # --- Scheduling (reminders) ---

@@ -159,7 +159,7 @@ export default function WeatherDetail({ data, unit, onToggleUnit, onRefresh, isF
 
       <div className="flex items-center justify-between text-[11px] text-slate-400">
         <span>Updated {data.last_updated || data.localtime}</span>
-        {data.is_mock && <span>Sample data — add a WeatherAPI key to go live</span>}
+        {data.is_mock && <span>Sample data — live weather unavailable</span>}
       </div>
     </div>
   )
