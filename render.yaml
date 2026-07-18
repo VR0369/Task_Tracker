@@ -23,7 +23,7 @@ services:
       - key: MONGO_URL
         sync: false
       - key: MONGO_DB_NAME
-        value: task_tracker
+        value: TaskTracker
       # Seeds demo data once on first boot (idempotent). Set false for empty DB.
       - key: SEED_ON_STARTUP
         value: "true"
