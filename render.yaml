@@ -1,6 +1,9 @@
 # Render Blueprint — one Docker web service that serves the API and the SPA.
 # Deploy: Render Dashboard → New → Blueprint → connect this repo → Apply.
-# Runs in mock mode (in-memory DB + dev login) with zero external credentials.
+#
+# Uses a real MongoDB (Atlas) for persistence. Auth/weather/history stay mocked,
+# so the only credential you must supply is MONGO_URL. Render prompts for it on
+# Apply (sync: false) and keeps it out of git.
 services:
   - type: web
     name: orbit-task-tracker
@@ -12,17 +15,25 @@ services:
     envVars:
       - key: ENVIRONMENT
         value: production
-      # Mock mode (also the code defaults) — no database or API keys needed.
+      # --- Database (MongoDB Atlas) ---
       - key: MOCK_DB
+        value: "false"
+      # Set in the Render dashboard, not in git. Example:
+      #   mongodb+srv://<user>:<password>@cluster0.xxxxx.mongodb.net/?retryWrites=true&w=majority
+      - key: MONGO_URL
+        sync: false
+      - key: MONGO_DB_NAME
+        value: task_tracker
+      # Seeds demo data once on first boot (idempotent). Set false for empty DB.
+      - key: SEED_ON_STARTUP
         value: "true"
+      # --- Still mocked (no external keys needed) ---
       - key: MOCK_AUTH
         value: "true"
       - key: MOCK_WEATHER
         value: "true"
       - key: MOCK_HISTORY
         value: "true"
-      - key: SEED_ON_STARTUP
-        value: "true"
-      # Change nothing — Render generates a strong secret and keeps it stable.
+      # Render generates a strong secret and keeps it stable across deploys.
       - key: JWT_SECRET
         generateValue: true
