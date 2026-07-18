@@ -2,8 +2,8 @@
 
 A modern, responsive, collaborative task tracker with a real-time dashboard,
 role-based access control, a glassmorphism UI, and mock-but-real-ready
-integrations (Google OAuth, AccuWeather, on-this-day history, motivational
-quotes).
+integrations (Google OAuth, live weather via WeatherAPI.com, on-this-day
+history, motivational quotes).
 
 > **Runs with zero credentials out of the box.** The whole stack boots in
 > "mock mode": an in-memory database, a dev login, and mocked weather/quotes/
@@ -19,6 +19,7 @@ Recharts · FastAPI · MongoDB (Motor) · JWT · Pydantic v2.
 
 - [Quick start (fastest path)](#quick-start-fastest-path)
 - [Run with Docker Compose](#run-with-docker-compose)
+- [Deploy to Render](#deploy-to-render)
 - [Configuration & going live](#configuration--going-live)
 - [Architecture](#architecture)
 - [Project structure](#project-structure)
@@ -83,6 +84,40 @@ production database.
 
 ---
 
+## Deploy to Render
+
+The included `render.yaml` blueprint deploys the whole app as **one** Docker web
+service: a multi-stage build compiles the React SPA and FastAPI serves it, so the
+API and UI share a single origin — no CORS, no separate frontend service.
+
+1. Push this repo to GitHub.
+2. In Render: **New → Blueprint**, select the repo, then **Apply**. Render reads
+   `render.yaml` and provisions one free web service.
+3. On Apply, Render prompts for the secrets declared with `sync: false`:
+   - `MONGO_URL` — your MongoDB Atlas connection string (see below).
+   - `WEATHERAPI_API_KEY` — optional; weather falls back to mock if omitted.
+
+   `JWT_SECRET` is generated automatically.
+
+Then open `https://<service>.onrender.com` and use the dev login (mock auth stays
+on until you wire real Google OAuth).
+
+### MongoDB Atlas (persistence)
+
+Render doesn't host MongoDB, so point the app at a free Atlas cluster:
+
+1. Create a free **M0** cluster at [cloud.mongodb.com](https://cloud.mongodb.com/).
+2. **Database Access** → add a user + password.
+3. **Network Access** → allow `0.0.0.0/0` (Render's free tier has no fixed
+   outbound IP, so a single-IP allowlist won't work).
+4. **Connect → Drivers** → copy the `mongodb+srv://…` URI and set it as
+   `MONGO_URL` in Render. The blueprint already sets `MOCK_DB=false`.
+
+> **Free-tier notes:** the web service sleeps after ~15 min idle (~50s cold
+> start on the next request), and an idle Atlas M0 cluster can pause.
+
+---
+
 ## Configuration & going live
 
 All backend settings live in `backend/.env` (see `.env.example`). Key toggles:
@@ -91,7 +126,7 @@ All backend settings live in `backend/.env` (see `.env.example`). Key toggles:
 | --- | --- | --- |
 | `MOCK_DB` | `true` | In-memory DB (no MongoDB). Set `false` + `MONGO_URL` for real Mongo. |
 | `MOCK_AUTH` | `true` | Enables dev login + fake Google tokens. |
-| `MOCK_WEATHER` | `true` | Mocked weather. Set `false` + `ACCUWEATHER_API_KEY` for live data. |
+| `MOCK_WEATHER` | `true` | Mocked weather. Set `false` + `WEATHERAPI_API_KEY` for live data. |
 | `MOCK_HISTORY` | `true` | Mocked "On This Day". Set `false` to use the live keyless API. |
 | `JWT_SECRET` | dev key | **Change this in production.** |
 | `SEED_ON_STARTUP` | `true` | Seed demo data on first boot (idempotent). |
@@ -107,12 +142,15 @@ All backend settings live in `backend/.env` (see `.env.example`). Key toggles:
    Services button on the login page to call `POST /api/v1/auth/google` with the
    returned `id_token`.
 
-### AccuWeather (real)
+### Weather (real)
 
-Set `MOCK_WEATHER=false` and `ACCUWEATHER_API_KEY`. The service resolves a city
-to a location key, then fetches current conditions
-(`app/services/weather.py`). It gracefully falls back to mock data if the API is
-unreachable.
+Set `MOCK_WEATHER=false` and `WEATHERAPI_API_KEY` (free key at
+[weatherapi.com](https://www.weatherapi.com/)). A single `forecast.json` call
+powers the current conditions, the 24-hour hourly strip, the multi-day forecast,
+and air quality; `search.json` drives location autocomplete
+(`app/services/weather.py`). Responses are cached ~10 min, and the service
+gracefully falls back to mock data if the key is missing or the API is
+unreachable. Note: WeatherAPI's free plan caps the forecast at 3 days.
 
 ---
 
@@ -197,7 +235,7 @@ Selected endpoints (all under `/api/v1`):
 | GET | `/calendars` | User's calendars + role |
 | POST | `/invites` · `/invites/{id}/approve` | Invitation workflow |
 | GET | `/activity` | Audit log |
-| GET | `/quotes/random` · `/weather` · `/history/on-this-day` | Widgets |
+| GET | `/quotes/random` · `/weather` · `/weather/search` · `/history/on-this-day` | Widgets |
 
 ---
 
@@ -240,9 +278,11 @@ cd frontend && npm run build
 RBAC, the real-time four-card dashboard, View Tasks (auto-grouped, filters,
 sort, edit/delete/complete), Create Task, Calendar (day/week/month +
 drag-to-reschedule), Invitations (create → accept → approve), Activity log,
-Settings (theme/accent/timezone/notifications), homepage widgets
-(quote/weather/on-this-day), Recharts analytics, toasts, skeletons, empty
-states, dark mode, responsive + mobile bottom nav, and PWA install/offline.
+Settings (theme/accent/timezone/notifications), homepage widgets — motivational
+quote, live weather (current + 24h hourly + multi-day forecast + AQI, with
+search autocomplete, geolocation, °C/°F toggle, and a detail modal),
+on-this-day — Recharts analytics, toasts, skeletons, empty states, dark mode,
+responsive + mobile bottom nav, and PWA install/offline.
 
 **Scaffolded / simplified (clearly marked, easy to extend):** email/push
 reminder delivery (APScheduler scans and logs; wire your provider in

@@ -8,10 +8,16 @@ identical Motor API, so application code never branches on the mode.
 from __future__ import annotations
 
 import logging
+import re
 
 from .config import settings
 
 logger = logging.getLogger("task_tracker.db")
+
+
+def _redact(uri: str) -> str:
+    """Mask credentials in a Mongo URI before logging (never log the password)."""
+    return re.sub(r"://([^:@/]+):[^@/]+@", r"://\1:***@", uri or "")
 
 
 class Database:
@@ -46,7 +52,7 @@ async def connect_to_mongo() -> None:
             settings.mongo_url, uuidRepresentation="standard", tz_aware=True
         )
         db_state.mock = False
-        logger.info("Connected to MongoDB at %s", settings.mongo_url)
+        logger.info("Connected to MongoDB at %s", _redact(settings.mongo_url))
 
     db_state.db = db_state.client[settings.mongo_db_name]
     await create_indexes()
