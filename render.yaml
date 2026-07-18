@@ -1,10 +1,10 @@
 # Render Blueprint — one Docker web service that serves the API and the SPA.
 # Deploy: Render Dashboard → New → Blueprint → connect this repo → Apply.
 #
-# Uses a real MongoDB (Atlas) for persistence and live keyless data (weather via
-# Open-Meteo, on-this-day via byabbe.se, quotes via ZenQuotes). Only auth stays
-# mocked, so the only credential you must supply is MONGO_URL. Render prompts for
-# it on Apply (sync: false), out of git. To enable real Google login, see below.
+# Uses a real MongoDB (Atlas) for persistence, live weather (WeatherAPI — keyed,
+# reliable on Render's shared IP), and live keyless on-this-day (byabbe.se) +
+# quotes (ZenQuotes). On Apply, Render prompts for the two sync:false secrets:
+# MONGO_URL and WEATHERAPI_API_KEY. Only auth stays mocked (real Google: below).
 services:
   - type: web
     name: orbit-task-tracker
@@ -28,11 +28,15 @@ services:
       # Seeds demo data once on first boot (idempotent). Set false for empty DB.
       - key: SEED_ON_STARTUP
         value: "true"
-      # --- Weather (Open-Meteo, keyless) ---
-      # Live weather via Open-Meteo needs no API key. MOCK_WEATHER=false turns
-      # it on; if the provider is unreachable it falls back to mock automatically.
+      # --- Weather ---
+      # MOCK_WEATHER=false turns live weather on. On Render's shared IP, keyless
+      # Open-Meteo gets rate-limited (429), so set WEATHERAPI_API_KEY (free key
+      # from https://www.weatherapi.com/) in the dashboard — its per-key quota is
+      # reliable here. Open-Meteo stays as the keyless fallback.
       - key: MOCK_WEATHER
         value: "false"
+      - key: WEATHERAPI_API_KEY
+        sync: false
       # --- On This Day (byabbe.se) + Quotes (ZenQuotes) — live, keyless ---
       - key: MOCK_HISTORY
         value: "false"

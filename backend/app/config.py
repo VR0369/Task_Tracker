@@ -48,10 +48,14 @@ class Settings(BaseSettings):
     google_client_secret: str = ""
     google_redirect_uri: str = "http://localhost:5173/auth/callback"
 
-    # --- Weather (Open-Meteo — keyless, no API key required) ---
-    # MOCK_WEATHER=false enables live Open-Meteo data; provider URLs are
-    # constants in app/services/weather.py, so there is nothing else to set.
+    # --- Weather ---
+    # Primary: WeatherAPI.com when WEATHERAPI_API_KEY is set (per-key quota —
+    # reliable on shared cloud IPs like Render's free tier). Fallback: keyless
+    # Open-Meteo (great locally, but rate-limited on shared IPs). MOCK_WEATHER
+    # =false turns live on; both provider URLs live in services/weather.py.
     mock_weather: bool = True
+    weatherapi_api_key: str = ""
+    weatherapi_base_url: str = "https://api.weatherapi.com/v1"
 
     # --- On This Day (byabbe.se, keyless) ---
     mock_history: bool = True

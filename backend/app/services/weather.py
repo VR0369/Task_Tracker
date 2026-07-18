@@ -1,18 +1,19 @@
 """Weather service.
 
-Live data comes from **Open-Meteo** — a free, keyless API (no signup):
-- ``/v1/forecast``            → current + hourly + daily
-- ``geocoding-api``           → city/state search + name→coords
-- ``air-quality-api``         → US AQI / PM2.5 / PM10 / ozone
-- BigDataCloud reverse-geocode → coords→city name (Open-Meteo forecast has none)
-- Zippopotam.us               → ZIP/postal code → city
+Two live providers, tried in order, then a deterministic mock — all normalized
+to one identical shape so the UI renders regardless:
 
-Set ``MOCK_WEATHER=false`` to go live (no key required). Everything is returned
-in one normalized shape; without connectivity the service falls back to a
-deterministic mock in the identical shape, so the whole UI renders regardless.
+1. **WeatherAPI.com** (primary, when ``WEATHERAPI_API_KEY`` is set) — a keyed
+   provider whose quota is per-key, so it stays reliable on shared cloud IPs
+   like Render's free tier. One ``forecast.json`` call → current + hourly +
+   daily + AQI; ``search.json`` → autocomplete (handles ZIP too).
+2. **Open-Meteo** (fallback, keyless) — great locally, but its free tier is
+   rate-limited per-IP, so it gets 429'd on shared datacenter IPs. Uses
+   Open-Meteo geocoding + Zippopotam.us (ZIP) + BigDataCloud reverse-geocode
+   for place names (Open-Meteo's forecast returns none).
 
-Responses are cached in-memory (~10 min) to cut API usage and to serve as an
-offline fallback if a provider is briefly unreachable.
+Set ``MOCK_WEATHER=false`` to go live. Responses are cached in-memory (~10 min)
+to cut API usage and serve as an offline fallback if a provider is unreachable.
 """
 
 from __future__ import annotations
@@ -118,6 +119,13 @@ def _live_enabled() -> bool:
 
 def _c2f(c) -> float:
     return round(float(c) * 9 / 5 + 32, 1)
+
+
+def _icon(url: str) -> str:
+    """WeatherAPI returns protocol-relative icon URLs (//cdn…) — make absolute."""
+    if url and url.startswith("//"):
+        return "https:" + url
+    return url or ""
 
 
 def _hour_label(dt: datetime) -> str:
@@ -422,6 +430,182 @@ def _normalize(data: dict, aq: Optional[dict]) -> Dict:
 
 
 # --------------------------------------------------------------------------- #
+# WeatherAPI.com (primary — keyed, reliable on shared cloud IPs)
+# --------------------------------------------------------------------------- #
+def _normalize_wapi(data: dict) -> Dict:
+    loc = data.get("location", {})
+    cur = data.get("current", {})
+    fdays = data.get("forecast", {}).get("forecastday", [])
+
+    # Rolling next-24h from the location's local "now".
+    now_epoch = loc.get("localtime_epoch") or cur.get("last_updated_epoch") or 0
+    all_hours: List[dict] = []
+    for day in fdays:
+        all_hours.extend(day.get("hour", []))
+    all_hours.sort(key=lambda h: h.get("time_epoch", 0))
+    upcoming = [h for h in all_hours if h.get("time_epoch", 0) >= now_epoch - 1800][:24]
+    if not upcoming:
+        upcoming = all_hours[:24]
+
+    hourly = []
+    for h in upcoming:
+        cond = h.get("condition", {})
+        try:
+            lbl = _hour_label(datetime.strptime(h["time"], "%Y-%m-%d %H:%M"))
+        except Exception:
+            lbl = h.get("time", "")
+        hourly.append(
+            {
+                "time": h.get("time", ""),
+                "label": lbl,
+                "temp_c": h.get("temp_c", 0),
+                "temp_f": h.get("temp_f", 0),
+                "condition": cond.get("text", ""),
+                "icon": _icon(cond.get("icon", "")),
+                "code": cond.get("code", 0),
+                "chance_of_rain": int(h.get("chance_of_rain", 0)),
+                "is_day": int(h.get("is_day", 1)),
+            }
+        )
+
+    daily = []
+    for dd in fdays:
+        day = dd.get("day", {})
+        cond = day.get("condition", {})
+        try:
+            dname = datetime.strptime(dd["date"], "%Y-%m-%d").strftime("%a")
+        except Exception:
+            dname = dd.get("date", "")
+        daily.append(
+            {
+                "date": dd.get("date", ""),
+                "day_name": dname,
+                "max_c": day.get("maxtemp_c", 0),
+                "max_f": day.get("maxtemp_f", 0),
+                "min_c": day.get("mintemp_c", 0),
+                "min_f": day.get("mintemp_f", 0),
+                "condition": cond.get("text", ""),
+                "icon": _icon(cond.get("icon", "")),
+                "code": cond.get("code", 0),
+                "chance_of_rain": int(day.get("daily_chance_of_rain", 0)),
+            }
+        )
+
+    astro = fdays[0].get("astro", {}) if fdays else {}
+    aq = cur.get("air_quality") or {}
+    cur_cond = cur.get("condition", {})
+    aqi = None
+    if aq:
+        aqi = {
+            "us_epa_index": int(aq.get("us-epa-index", 0) or 0),
+            "pm2_5": aq.get("pm2_5"),
+            "pm10": aq.get("pm10"),
+            "o3": aq.get("o3"),
+        }
+
+    return {
+        "location": loc.get("name", ""),
+        "region": loc.get("region", ""),
+        "country": loc.get("country", ""),
+        "lat": loc.get("lat"),
+        "lon": loc.get("lon"),
+        "localtime": loc.get("localtime", ""),
+        "temperature_c": cur.get("temp_c", 0),
+        "temperature_f": cur.get("temp_f", 0),
+        "feelslike_c": cur.get("feelslike_c", cur.get("temp_c", 0)),
+        "feelslike_f": cur.get("feelslike_f", cur.get("temp_f", 0)),
+        "condition": cur_cond.get("text", ""),
+        "condition_code": cur_cond.get("code", 0),
+        "icon": _icon(cur_cond.get("icon", "")),
+        "humidity": int(cur.get("humidity", 0)),
+        "wind_kph": cur.get("wind_kph", 0),
+        "wind_dir": cur.get("wind_dir", ""),
+        "wind_degree": int(cur.get("wind_degree", 0)),
+        "pressure_mb": cur.get("pressure_mb", 0),
+        "visibility_km": cur.get("vis_km", 0),
+        "uv": cur.get("uv", 0),
+        "cloud": int(cur.get("cloud", 0)),
+        "is_day": int(cur.get("is_day", 1)),
+        "sunrise": astro.get("sunrise", ""),
+        "sunset": astro.get("sunset", ""),
+        "last_updated": cur.get("last_updated", ""),
+        "aqi": aqi,
+        "hourly": hourly,
+        "daily": daily,
+        "is_mock": False,
+    }
+
+
+async def _wapi_forecast(q: str) -> Dict:
+    base = settings.weatherapi_base_url
+    async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
+        resp = await client.get(
+            f"{base}/forecast.json",
+            params={"key": settings.weatherapi_api_key, "q": q, "days": 3, "aqi": "yes", "alerts": "no"},
+        )
+    if resp.status_code == 400:
+        try:
+            code = resp.json().get("error", {}).get("code")
+        except Exception:
+            code = None
+        if code == 1006:
+            raise LocationNotFound(q)
+    resp.raise_for_status()
+    return _normalize_wapi(resp.json())
+
+
+async def _wapi_resolve(q: str) -> Optional[Dict]:
+    """Resolve a raw query (e.g. a ZIP) to one place via current.json."""
+    base = settings.weatherapi_base_url
+    try:
+        async with httpx.AsyncClient(timeout=8, follow_redirects=True) as client:
+            resp = await client.get(
+                f"{base}/current.json", params={"key": settings.weatherapi_api_key, "q": q}
+            )
+        if resp.status_code == 400:
+            return None
+        resp.raise_for_status()
+        loc = resp.json().get("location", {})
+        if not loc.get("name"):
+            return None
+        return {
+            "name": loc.get("name", ""),
+            "region": loc.get("region", ""),
+            "country": loc.get("country", ""),
+            "lat": loc.get("lat"),
+            "lon": loc.get("lon"),
+        }
+    except Exception as exc:
+        logger.warning("WeatherAPI resolve failed (%s).", exc)
+        return None
+
+
+async def _wapi_search(query: str) -> List[Dict]:
+    base = settings.weatherapi_base_url
+    async with httpx.AsyncClient(timeout=8, follow_redirects=True) as client:
+        resp = await client.get(
+            f"{base}/search.json", params={"key": settings.weatherapi_api_key, "q": query}
+        )
+        resp.raise_for_status()
+        results = [
+            {
+                "name": i.get("name", ""),
+                "region": i.get("region", ""),
+                "country": i.get("country", ""),
+                "lat": i.get("lat"),
+                "lon": i.get("lon"),
+            }
+            for i in resp.json()
+        ]
+    # Autocomplete misses bare ZIP/postal codes — resolve them directly.
+    if not results and any(ch.isdigit() for ch in query):
+        r = await _wapi_resolve(query)
+        if r:
+            results = [r]
+    return results
+
+
+# --------------------------------------------------------------------------- #
 # mock (deterministic, same shape as live)
 # --------------------------------------------------------------------------- #
 def _mock_weather(q: Optional[str]) -> Dict:
@@ -528,46 +712,62 @@ def _mock_search(query: str) -> List[Dict]:
 # --------------------------------------------------------------------------- #
 # public API
 # --------------------------------------------------------------------------- #
+async def _open_meteo_flow(location, lat, lon) -> Dict:
+    """Resolve the place (geocode name / reverse-geocode coords) then fetch."""
+    if lat is not None and lon is not None:
+        latf, lonf = float(lat), float(lon)
+        place = await _reverse_geocode(latf, lonf) or {}
+        name = place.get("name") or "Your location"
+        region, country = place.get("region", ""), place.get("country", "")
+    else:
+        g = await _geocode(location or DEFAULT_LOCATION)
+        if not g:
+            raise LocationNotFound(location or DEFAULT_LOCATION)
+        latf, lonf = float(g["lat"]), float(g["lon"])
+        name, region, country = g["name"], g["region"], g["country"]
+
+    data = await _open_meteo(latf, lonf)
+    data.update({"location": name, "region": region, "country": country, "lat": latf, "lon": lonf})
+    return data
+
+
 async def get_weather(location: Optional[str] = None, lat=None, lon=None) -> Dict:
     q = _resolve_q(location, lat, lon)
 
-    if _live_enabled():
-        cache_key = f"forecast:{(q or DEFAULT_LOCATION).lower()}"
-        cached = _cache_get(cache_key)
-        if cached is not None:
-            return cached
-        try:
-            if lat is not None and lon is not None:
-                latf, lonf = float(lat), float(lon)
-                place = await _reverse_geocode(latf, lonf) or {}
-                name = place.get("name") or "Your location"
-                region, country = place.get("region", ""), place.get("country", "")
-            else:
-                g = await _geocode(location or DEFAULT_LOCATION)
-                if not g:
-                    raise LocationNotFound(location or DEFAULT_LOCATION)
-                latf, lonf = float(g["lat"]), float(g["lon"])
-                name, region, country = g["name"], g["region"], g["country"]
+    if not _live_enabled():
+        return _mock_weather(q)
 
-            data = await _open_meteo(latf, lonf)
-            data.update({"location": name, "region": region, "country": country,
-                         "lat": latf, "lon": lonf})
+    cache_key = f"forecast:{(q or DEFAULT_LOCATION).lower()}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    # 1) WeatherAPI (keyed) — reliable per-key quota, works on shared cloud IPs.
+    if settings.weatherapi_api_key:
+        try:
+            data = await _wapi_forecast(q or DEFAULT_LOCATION)
             _cache_set(cache_key, data, FORECAST_TTL)
             return data
-        except LocationNotFound:
-            raise
-        except Exception as exc:  # network / rate-limit (429) → degrade gracefully
-            logger.warning("Open-Meteo failed (%s); serving fallback.", exc)
-            # Prefer the last good (stale) reading over mock, and re-cache the
-            # fallback for a short cooldown so we stop hammering a rate-limited
-            # provider on every request (otherwise the expired entry is a miss
-            # and each request re-hits the API → a 429 storm that never clears).
-            stale = _cache_get(cache_key, allow_expired=True)
-            fallback = stale if stale is not None else _mock_weather(q)
-            _cache_set(cache_key, fallback, FALLBACK_TTL)
-            return fallback
+        except Exception as exc:  # incl. LocationNotFound → give Open-Meteo a shot
+            logger.warning("WeatherAPI failed (%s); trying Open-Meteo.", exc)
 
-    return _mock_weather(q)
+    # 2) Open-Meteo (keyless) — great locally; may 429 on shared IPs.
+    try:
+        data = await _open_meteo_flow(location, lat, lon)
+        _cache_set(cache_key, data, FORECAST_TTL)
+        return data
+    except LocationNotFound:
+        raise
+    except Exception as exc:  # network / rate-limit (429) → degrade gracefully
+        logger.warning("Open-Meteo failed (%s); serving fallback.", exc)
+
+    # 3) Prefer the last good (stale) reading over mock, and re-cache the fallback
+    # for a short cooldown so a rate-limited provider gets a breather instead of
+    # being re-hit on every request (which turns one 429 into a storm).
+    stale = _cache_get(cache_key, allow_expired=True)
+    fallback = stale if stale is not None else _mock_weather(q)
+    _cache_set(cache_key, fallback, FALLBACK_TTL)
+    return fallback
 
 
 async def search_locations(query: str) -> List[Dict]:
@@ -575,21 +775,33 @@ async def search_locations(query: str) -> List[Dict]:
     if len(query) < 2:
         return []
 
-    if _live_enabled():
-        key = f"search:{query.lower()}"
-        cached = _cache_get(key)
-        if cached is not None:
-            return cached
+    if not _live_enabled():
+        return _mock_search(query)
+
+    key = f"search:{query.lower()}"
+    cached = _cache_get(key)
+    if cached is not None:
+        return cached
+
+    results: List[Dict] = []
+    # 1) WeatherAPI autocomplete (+ ZIP resolve) when keyed.
+    if settings.weatherapi_api_key:
+        try:
+            results = await _wapi_search(query)
+        except Exception as exc:
+            logger.warning("WeatherAPI search failed (%s); trying Open-Meteo.", exc)
+
+    # 2) Open-Meteo geocoding / Zippopotam fallback.
+    if not results:
         try:
             if query.isdigit():  # ZIP / postal code
                 loc = await _zip_lookup(query)
                 results = [loc] if loc else []
             else:
                 results = await _geocode_search(query, count=8)
-            _cache_set(key, results, SEARCH_TTL)
-            return results
         except Exception as exc:
             logger.warning("Geocoding failed (%s).", exc)
-            return []
+            results = []
 
-    return _mock_search(query)
+    _cache_set(key, results, SEARCH_TTL)
+    return results
