@@ -14,7 +14,7 @@ import { dayjs, SEVERITY } from '../utils/format'
 import { useTasks } from '../api/hooks'
 
 export default function Analytics() {
-  const { data } = useTasks({ page_size: 500 })
+  const { data } = useTasks({ page_size: 200 })
   const items = data?.items || []
 
   const weekly = useMemo(() => {
