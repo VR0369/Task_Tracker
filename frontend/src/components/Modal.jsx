@@ -1,8 +1,11 @@
+import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { X } from 'lucide-react'
 
 export default function Modal({ open, onClose, title, children }) {
-  return (
+  // Portal to <body> so the fixed overlay is relative to the viewport, not a
+  // transformed ancestor (the page-transition motion.div in Layout).
+  return createPortal(
     <AnimatePresence>
       {open && (
         <div className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4">
@@ -34,6 +37,7 @@ export default function Modal({ open, onClose, title, children }) {
           </motion.div>
         </div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
   )
 }

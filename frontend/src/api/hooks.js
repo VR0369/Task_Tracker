@@ -9,7 +9,8 @@ export const keys = {
   activity: ['activity'],
   calendars: ['calendars'],
   invites: ['invites'],
-  weather: (loc) => ['weather', loc || 'default'],
+  weather: (key) => ['weather', key || 'default'],
+  weatherSearch: (q) => ['weatherSearch', q || ''],
   quote: ['quote'],
   history: ['history'],
 }
@@ -162,12 +163,34 @@ export function useQuote() {
   })
 }
 
-export function useWeather(location) {
+export function useWeather({ location, lat, lon } = {}) {
+  const hasCoords = lat != null && lon != null
+  // Stable key so C/F toggles (client-side) don't refetch; coords rounded.
+  const cacheKey = hasCoords
+    ? `${Number(lat).toFixed(2)},${Number(lon).toFixed(2)}`
+    : location || 'default'
   return useQuery({
-    queryKey: keys.weather(location),
-    queryFn: async () =>
-      (await api.get('/weather', { params: location ? { location } : {} })).data,
+    queryKey: keys.weather(cacheKey),
+    queryFn: async () => {
+      const params = hasCoords ? { lat, lon } : location ? { location } : {}
+      return (await api.get('/weather', { params })).data
+    },
     staleTime: 5 * 60_000,
+    refetchInterval: 10 * 60_000, // auto-refresh every 10 min
+    refetchOnWindowFocus: true,
+    retry: 1,
+  })
+}
+
+export function useWeatherSearch(query) {
+  const q = (query || '').trim()
+  return useQuery({
+    queryKey: keys.weatherSearch(q.toLowerCase()),
+    queryFn: async () =>
+      (await api.get('/weather/search', { params: { q } })).data,
+    enabled: q.length >= 2,
+    staleTime: 5 * 60_000,
+    retry: 0,
   })
 }
 

@@ -73,16 +73,76 @@ class Quote(BaseModel):
     category: str
 
 
+class WeatherHour(BaseModel):
+    time: str  # ISO-ish "YYYY-MM-DD HH:MM"
+    label: str  # short display label e.g. "3 PM"
+    temp_c: float
+    temp_f: float
+    condition: str
+    icon: str = ""  # provider icon URL; empty -> frontend falls back by text
+    code: int = 0
+    chance_of_rain: int = 0
+    is_day: int = 1
+
+
+class WeatherDay(BaseModel):
+    date: str
+    day_name: str  # "Mon"
+    max_c: float
+    max_f: float
+    min_c: float
+    min_f: float
+    condition: str
+    icon: str = ""
+    code: int = 0
+    chance_of_rain: int = 0
+
+
+class AirQuality(BaseModel):
+    us_epa_index: int = 0  # 1..6
+    pm2_5: Optional[float] = None
+    pm10: Optional[float] = None
+    o3: Optional[float] = None
+
+
+class WeatherSearchResult(BaseModel):
+    name: str
+    region: str = ""
+    country: str = ""
+    lat: float
+    lon: float
+
+
 class WeatherResponse(BaseModel):
     location: str
+    region: str = ""
+    country: str = ""
+    lat: Optional[float] = None
+    lon: Optional[float] = None
+    localtime: str = ""
     temperature_c: float
     temperature_f: float
+    feelslike_c: float
+    feelslike_f: float
+    condition: str
+    condition_code: int = 0
+    icon: str = ""
     humidity: int
     wind_kph: float
-    condition: str
-    icon: str
+    wind_dir: str = ""
+    wind_degree: int = 0
+    pressure_mb: float = 0
+    visibility_km: float = 0
+    uv: float = 0
+    cloud: int = 0
+    is_day: int = 1
+    sunrise: str = ""
+    sunset: str = ""
+    last_updated: str = ""
+    aqi: Optional[AirQuality] = None
+    hourly: List[WeatherHour] = Field(default_factory=list)
+    daily: List[WeatherDay] = Field(default_factory=list)
     is_mock: bool = False
-    forecast: List[dict] = Field(default_factory=list)
 
 
 class HistoryEvent(BaseModel):

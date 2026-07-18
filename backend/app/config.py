@@ -48,8 +48,10 @@ class Settings(BaseSettings):
     google_client_secret: str = ""
     google_redirect_uri: str = "http://localhost:5173/auth/callback"
 
-    # --- AccuWeather ---
+    # --- Weather (WeatherAPI.com primary; AccuWeather kept for the legacy path) ---
     mock_weather: bool = True
+    weatherapi_api_key: str = ""
+    weatherapi_base_url: str = "https://api.weatherapi.com/v1"
     accuweather_api_key: str = ""
     accuweather_base_url: str = "https://dataservice.accuweather.com"
 

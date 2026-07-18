@@ -27,10 +27,16 @@ services:
       # Seeds demo data once on first boot (idempotent). Set false for empty DB.
       - key: SEED_ON_STARTUP
         value: "true"
+      # --- Weather (WeatherAPI.com) ---
+      # Set MOCK_WEATHER=false; live data kicks in once WEATHERAPI_API_KEY is
+      # provided, otherwise the service safely falls back to mock.
+      - key: MOCK_WEATHER
+        value: "false"
+      # Free key from https://www.weatherapi.com/ — set in the dashboard.
+      - key: WEATHERAPI_API_KEY
+        sync: false
       # --- Still mocked (no external keys needed) ---
       - key: MOCK_AUTH
-        value: "true"
-      - key: MOCK_WEATHER
         value: "true"
       - key: MOCK_HISTORY
         value: "true"
