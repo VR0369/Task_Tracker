@@ -35,7 +35,7 @@ logger = logging.getLogger("task_tracker.weather")
 FORECAST_TTL = 600  # seconds (10 min)
 SEARCH_TTL = 300  # seconds (5 min)
 FALLBACK_TTL = 120  # cooldown after a live failure (e.g. 429) — avoids retry storms
-DEFAULT_LOCATION = "New York"
+DEFAULT_LOCATION = "South Plainfiedld, NJ, USA"  # fallback if no location is given 
 
 FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
 GEOCODE_URL = "https://geocoding-api.open-meteo.com/v1/search"

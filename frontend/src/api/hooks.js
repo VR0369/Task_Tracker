@@ -176,7 +176,10 @@ export function useWeather({ location, lat, lon } = {}) {
       return (await api.get('/weather', { params })).data
     },
     staleTime: 5 * 60_000,
-    refetchInterval: 10 * 60_000, // auto-refresh every 10 min
+    // Auto-refresh every 10 min normally; but if we're stuck on the mock
+    // fallback (e.g. after a provider rate-limit), retry live every minute so
+    // the widget self-heals instead of showing "sample data" for up to 10 min.
+    refetchInterval: (query) => (query.state.data?.is_mock ? 60_000 : 10 * 60_000),
     refetchOnWindowFocus: true,
     retry: 1,
   })
