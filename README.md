@@ -2,7 +2,7 @@
 
 A modern, responsive, collaborative task tracker with a real-time dashboard,
 role-based access control, a glassmorphism UI, and mock-but-real-ready
-integrations (Google OAuth, live weather via WeatherAPI.com, on-this-day
+integrations (Google OAuth, live weather via Open-Meteo, on-this-day
 history, motivational quotes).
 
 > **Runs with zero credentials out of the box.** The whole stack boots in
@@ -93,11 +93,11 @@ API and UI share a single origin — no CORS, no separate frontend service.
 1. Push this repo to GitHub.
 2. In Render: **New → Blueprint**, select the repo, then **Apply**. Render reads
    `render.yaml` and provisions one free web service.
-3. On Apply, Render prompts for the secrets declared with `sync: false`:
+3. On Apply, Render prompts for the one secret declared with `sync: false`:
    - `MONGO_URL` — your MongoDB Atlas connection string (see below).
-   - `WEATHERAPI_API_KEY` — optional; weather falls back to mock if omitted.
 
-   `JWT_SECRET` is generated automatically.
+   `JWT_SECRET` is generated automatically. Live weather (Open-Meteo) needs no
+   key — `MOCK_WEATHER=false` is already set in `render.yaml`.
 
 Then open `https://<service>.onrender.com` and use the dev login (mock auth stays
 on until you wire real Google OAuth).
@@ -126,7 +126,7 @@ All backend settings live in `backend/.env` (see `.env.example`). Key toggles:
 | --- | --- | --- |
 | `MOCK_DB` | `true` | In-memory DB (no MongoDB). Set `false` + `MONGO_URL` for real Mongo. |
 | `MOCK_AUTH` | `true` | Enables dev login + fake Google tokens. |
-| `MOCK_WEATHER` | `true` | Mocked weather. Set `false` + `WEATHERAPI_API_KEY` for live data. |
+| `MOCK_WEATHER` | `true` | Mocked weather. Set `false` for live Open-Meteo data (no key). |
 | `MOCK_HISTORY` | `true` | Mocked "On This Day". Set `false` to use the live keyless API. |
 | `JWT_SECRET` | dev key | **Change this in production.** |
 | `SEED_ON_STARTUP` | `true` | Seed demo data on first boot (idempotent). |
@@ -144,13 +144,15 @@ All backend settings live in `backend/.env` (see `.env.example`). Key toggles:
 
 ### Weather (real)
 
-Set `MOCK_WEATHER=false` and `WEATHERAPI_API_KEY` (free key at
-[weatherapi.com](https://www.weatherapi.com/)). A single `forecast.json` call
-powers the current conditions, the 24-hour hourly strip, the multi-day forecast,
-and air quality; `search.json` drives location autocomplete
-(`app/services/weather.py`). Responses are cached ~10 min, and the service
-gracefully falls back to mock data if the key is missing or the API is
-unreachable. Note: WeatherAPI's free plan caps the forecast at 3 days.
+Set `MOCK_WEATHER=false` — that's it. Live weather comes from
+[Open-Meteo](https://open-meteo.com/), which is **free and keyless** (no signup).
+It powers current conditions, the 24-hour hourly strip, the 7-day forecast, and
+air quality; [Open-Meteo geocoding](https://open-meteo.com/en/docs/geocoding-api)
+drives city/state search, [Zippopotam.us](https://zippopotam.us/) resolves
+ZIP/postal codes to a city, and BigDataCloud reverse-geocodes coordinates to a
+place name (`app/services/weather.py`). Responses are cached ~10 min, and the
+service gracefully falls back to mock data (with a short cooldown) if a provider
+is rate-limited or unreachable.
 
 ---
 
@@ -162,7 +164,7 @@ unreachable. Note: WeatherAPI's free plan caps the forecast at 3 days.
 │ (Vite+PWA) │  JWT (Bearer)    │  RBAC + APIs │  (or in-mem)   │          │
 └────────────┘ ◀─────────────── └──────────────┘                └──────────┘
         │  React Query cache          │  APScheduler (reminders)
-        │  optimistic updates         │  Google OAuth / AccuWeather (real-ready)
+        │  optimistic updates         │  Google OAuth / Open-Meteo (real-ready)
 ```
 
 - **Auth:** passwordless Google OAuth → app-issued JWT access + refresh tokens.

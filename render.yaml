@@ -1,9 +1,9 @@
 # Render Blueprint — one Docker web service that serves the API and the SPA.
 # Deploy: Render Dashboard → New → Blueprint → connect this repo → Apply.
 #
-# Uses a real MongoDB (Atlas) for persistence. Auth/weather/history stay mocked,
-# so the only credential you must supply is MONGO_URL. Render prompts for it on
-# Apply (sync: false) and keeps it out of git.
+# Uses a real MongoDB (Atlas) for persistence and live keyless weather
+# (Open-Meteo). Auth and on-this-day stay mocked, so the only credential you must
+# supply is MONGO_URL. Render prompts for it on Apply (sync: false), out of git.
 services:
   - type: web
     name: orbit-task-tracker

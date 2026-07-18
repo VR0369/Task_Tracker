@@ -34,6 +34,7 @@ logger = logging.getLogger("task_tracker.weather")
 
 FORECAST_TTL = 600  # seconds (10 min)
 SEARCH_TTL = 300  # seconds (5 min)
+FALLBACK_TTL = 120  # cooldown after a live failure (e.g. 429) — avoids retry storms
 DEFAULT_LOCATION = "New York"
 
 FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
@@ -555,11 +556,16 @@ async def get_weather(location: Optional[str] = None, lat=None, lon=None) -> Dic
             return data
         except LocationNotFound:
             raise
-        except Exception as exc:  # network / provider hiccup → degrade gracefully
+        except Exception as exc:  # network / rate-limit (429) → degrade gracefully
             logger.warning("Open-Meteo failed (%s); serving fallback.", exc)
+            # Prefer the last good (stale) reading over mock, and re-cache the
+            # fallback for a short cooldown so we stop hammering a rate-limited
+            # provider on every request (otherwise the expired entry is a miss
+            # and each request re-hits the API → a 429 storm that never clears).
             stale = _cache_get(cache_key, allow_expired=True)
-            if stale is not None:
-                return stale
+            fallback = stale if stale is not None else _mock_weather(q)
+            _cache_set(cache_key, fallback, FALLBACK_TTL)
+            return fallback
 
     return _mock_weather(q)
 
