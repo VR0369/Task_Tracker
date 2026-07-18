@@ -14,6 +14,9 @@ dist-ssr/
 .vite/
 *.local
 
+# Built SPA copied into the backend image (produced by the Docker build)
+backend/static/
+
 # Env
 .env
 .env.*

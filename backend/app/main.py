@@ -6,11 +6,13 @@ import logging
 import time
 from collections import defaultdict, deque
 from contextlib import asynccontextmanager
+from pathlib import Path
 
-from fastapi import FastAPI, Request, status
+from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from .config import settings
 from .database import close_mongo_connection, connect_to_mongo
@@ -102,11 +104,39 @@ async def health():
     return {"status": "ok", "mock_db": settings.mock_db, "mock_auth": settings.mock_auth}
 
 
-@app.get("/", tags=["health"])
-async def root():
-    return {
-        "name": settings.app_name,
-        "docs": "/docs",
-        "health": "/health",
-        "api": settings.api_v1_prefix,
-    }
+# --- Static SPA (production single-service deploy) ---------------------------
+# When the built frontend is present (copied to ./static in the Docker image),
+# FastAPI serves it directly, so the whole app runs from one origin — no CORS,
+# no separate frontend service. In local dev this folder is absent and the JSON
+# root below is served instead (the Vite dev server handles the UI).
+STATIC_DIR = (Path(__file__).resolve().parent.parent / "static").resolve()
+
+if STATIC_DIR.is_dir():
+    app.mount("/assets", StaticFiles(directory=STATIC_DIR / "assets"), name="assets")
+
+    @app.get("/", include_in_schema=False)
+    async def spa_root():
+        return FileResponse(STATIC_DIR / "index.html")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def spa_fallback(full_path: str):
+        # API and doc routes are matched earlier; everything else is either a
+        # real static asset (favicon, manifest, service worker) or a client-side
+        # route that the SPA resolves from index.html.
+        if full_path.startswith("api"):
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Not found")
+        candidate = (STATIC_DIR / full_path).resolve()
+        if STATIC_DIR in candidate.parents and candidate.is_file():
+            return FileResponse(candidate)
+        return FileResponse(STATIC_DIR / "index.html")
+
+else:
+
+    @app.get("/", tags=["health"])
+    async def root():
+        return {
+            "name": settings.app_name,
+            "docs": "/docs",
+            "health": "/health",
+            "api": settings.api_v1_prefix,
+        }

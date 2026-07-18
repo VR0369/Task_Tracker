@@ -1,0 +1,28 @@
+# Render Blueprint — one Docker web service that serves the API and the SPA.
+# Deploy: Render Dashboard → New → Blueprint → connect this repo → Apply.
+# Runs in mock mode (in-memory DB + dev login) with zero external credentials.
+services:
+  - type: web
+    name: orbit-task-tracker
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      # Mock mode (also the code defaults) — no database or API keys needed.
+      - key: MOCK_DB
+        value: "true"
+      - key: MOCK_AUTH
+        value: "true"
+      - key: MOCK_WEATHER
+        value: "true"
+      - key: MOCK_HISTORY
+        value: "true"
+      - key: SEED_ON_STARTUP
+        value: "true"
+      # Change nothing — Render generates a strong secret and keeps it stable.
+      - key: JWT_SECRET
+        generateValue: true
