@@ -15,7 +15,7 @@ export default function CalendarPage() {
   const [editing, setEditing] = useState(null)
   const [dragId, setDragId] = useState(null)
 
-  const { data } = useTasks({ page_size: 500 })
+  const { data } = useTasks({ page_size: 200 })
   const update = useUpdateTask()
 
   const byDay = useMemo(() => {
