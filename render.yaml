@@ -1,10 +1,10 @@
 # Render Blueprint — one Docker web service that serves the API and the SPA.
 # Deploy: Render Dashboard → New → Blueprint → connect this repo → Apply.
 #
-# Uses a real MongoDB (Atlas) for persistence, live weather (WeatherAPI — keyed,
-# reliable on Render's shared IP), and live keyless on-this-day (byabbe.se) +
-# quotes (ZenQuotes). On Apply, Render prompts for the two sync:false secrets:
-# MONGO_URL and WEATHERAPI_API_KEY. Only auth stays mocked (real Google: below).
+# Uses a real MongoDB (Atlas), live weather (WeatherAPI — keyed, reliable on
+# Render's shared IP), live keyless on-this-day (byabbe.se) + quotes (ZenQuotes),
+# and real Google Sign-In. On Apply, Render prompts for the three sync:false
+# secrets: MONGO_URL, WEATHERAPI_API_KEY, and GOOGLE_CLIENT_ID.
 services:
   - type: web
     name: orbit-task-tracker
@@ -42,13 +42,16 @@ services:
         value: "false"
       - key: MOCK_QUOTES
         value: "false"
-      # --- Auth ---
-      # Mocked by default (dev login). For real Google Sign-In, set MOCK_AUTH=false
-      # and add these three in the Render dashboard (create an OAuth 2.0 Client ID
-      # at https://console.cloud.google.com/apis/credentials):
-      #   GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI
+      # --- Auth (real Google Sign-In) ---
+      # Set GOOGLE_CLIENT_ID in the dashboard (create an OAuth 2.0 Client ID at
+      # https://console.cloud.google.com/apis/credentials) AND add this service's
+      # public URL to that client's "Authorized JavaScript origins". The Google
+      # Identity Services token flow needs only the Client ID — no secret, no
+      # redirect URI. Flip MOCK_AUTH back to "true" to restore the dev login.
       - key: MOCK_AUTH
-        value: "true"
+        value: "false"
+      - key: GOOGLE_CLIENT_ID
+        sync: false
       # Render generates a strong secret and keeps it stable across deploys.
       - key: JWT_SECRET
         generateValue: true

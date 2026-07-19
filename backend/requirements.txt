@@ -16,6 +16,7 @@ email-validator==2.2.0
 # --- Auth ---
 python-jose[cryptography]==3.3.0
 google-auth==2.37.0              # real Google OAuth id_token verification (optional path)
+requests==2.34.2                 # required by google-auth's transport for id_token verification
 
 # --- Outbound HTTP (Open-Meteo weather / On-This-Day) ---
 httpx==0.28.1

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from jose import JWTError
 
@@ -63,7 +65,10 @@ async def google_login(body: GoogleLoginRequest):
     """
     try:
         info = await verify_google_id_token(body.id_token)
-    except Exception:
+    except Exception as exc:
+        logging.getLogger("task_tracker.auth").warning(
+            "Google token verification failed: %s: %s", type(exc).__name__, exc
+        )
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid Google token")
     if not info.get("email_verified"):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Google email not verified")
