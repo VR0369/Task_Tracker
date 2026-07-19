@@ -29,8 +29,13 @@ export default function InvitePage() {
       { email: v.email, role: v.role, calendar_id: adminCal?.id },
       {
         onSuccess: (res) => {
+          const email = v.email
           reset({ email: '', role: 'contributor' })
-          if (res?.link) copy(res.link)
+          if (res?.email_sent) {
+            toast.success(`Invitation emailed to ${email}`)
+          } else if (res?.link) {
+            copy(res.link) // email not configured/failed → copy link to share
+          }
         },
       }
     )

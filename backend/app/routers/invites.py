@@ -20,6 +20,7 @@ from ..config import settings
 from ..deps import get_current_user
 from ..models.enums import Role
 from ..models.misc import InvitationCreate, InvitationOut
+from ..services import mailer
 
 router = APIRouter(prefix="/invites", tags=["invites"])
 
@@ -60,7 +61,20 @@ async def create_invite(body: InvitationCreate, user: dict = Depends(get_current
         f'Invited {body.email} as {body.role.value}', inv["_id"],
     )
     link = f"{settings.frontend_url}/invite/accept?token={token}"
-    return {"invitation": _out(crud.doc(inv), cal["name"]).model_dump(mode="json"), "link": link}
+    # Best-effort email — the invitation + link are returned regardless, so the
+    # UI can fall back to copying the link if email isn't configured or fails.
+    email_sent = await mailer.send_invite_email(
+        to=body.email.lower(),
+        link=link,
+        inviter_name=user.get("name", "A teammate"),
+        calendar_name=cal["name"],
+        role=body.role.value,
+    )
+    return {
+        "invitation": _out(crud.doc(inv), cal["name"]).model_dump(mode="json"),
+        "link": link,
+        "email_sent": email_sent,
+    }
 
 
 @router.get("", response_model=List[InvitationOut])

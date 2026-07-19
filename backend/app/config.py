@@ -63,6 +63,16 @@ class Settings(BaseSettings):
     # --- Quotes (ZenQuotes, keyless) ---
     mock_quotes: bool = True
 
+    # --- Email (SMTP — e.g. Gmail with an App Password) ---
+    # When host/user/password are set, invite links are emailed; otherwise the
+    # app falls back to copying the link. Gmail: smtp.gmail.com:587 (STARTTLS).
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from: str = ""            # defaults to smtp_user when blank
+    smtp_from_name: str = "Orbit"
+
     # --- Rate limiting (simple in-memory) ---
     rate_limit_requests: int = 240
     rate_limit_window_seconds: int = 60
