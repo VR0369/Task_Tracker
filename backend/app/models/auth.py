@@ -24,5 +24,9 @@ class GoogleLoginRequest(BaseModel):
     id_token: str
 
 
+class SamplePromptRequest(BaseModel):
+    add: bool  # user's answer to "add sample tasks?" — True = Yes, False = No
+
+
 class RefreshRequest(BaseModel):
     refresh_token: str

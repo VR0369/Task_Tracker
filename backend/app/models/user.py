@@ -32,6 +32,9 @@ class UserPublic(UserBase):
     id: str
     settings: UserSettings = Field(default_factory=UserSettings)
     default_calendar_id: Optional[str] = None
+    # False only for brand-new users → the frontend shows the one-time
+    # "add sample tasks?" prompt. Existing users (field absent) default to True.
+    sample_prompt_seen: bool = True
     created_at: Optional[datetime] = None
 
 

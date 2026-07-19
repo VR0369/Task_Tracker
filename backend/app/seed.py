@@ -1,4 +1,10 @@
-"""Seed demo data so the dashboard is populated on first run (mock mode)."""
+"""Sample data seeding.
+
+- ``seed_demo_data`` runs on startup: creates the shared demo account
+  (demo@example.com) plus a teammate, populated with sample tasks.
+- ``seed_sample_tasks`` populates one calendar with the sample set; the auth
+  router calls it when a new user answers "Yes" to the sample-tasks prompt.
+"""
 
 from __future__ import annotations
 
@@ -33,31 +39,11 @@ async def _task(cal_id, user_id, name, severity, due_at, status=TaskStatus.pendi
     )
 
 
-async def seed_demo_data() -> None:
-    existing = await crud.get_user_by_email(DEMO_EMAIL)
-    if existing:
-        logger.info("Seed skipped — demo user already present.")
-        return
-
-    demo = await crud.create_user(
-        email=DEMO_EMAIL,
-        name="Demo User",
-        picture="https://api.dicebear.com/7.x/initials/svg?seed=Demo User",
-        provider_sub="seed-demo",
-    )
-    cal_id = demo["default_calendar_id"]
-    uid = demo["id"]
+async def seed_sample_tasks(cal_id, uid, actor) -> None:
+    """Populate one calendar with the standard set of sample tasks (relative
+    to today, so the dashboard's Past Due / Due Today / Upcoming / Completed
+    cards are all populated) plus a starter activity entry."""
     now = crud.now()
-
-    # A contributor teammate to make collaboration/activity feel real.
-    mate = await crud.create_user(
-        email="alex@example.com",
-        name="Alex Rivera",
-        picture="https://api.dicebear.com/7.x/initials/svg?seed=Alex Rivera",
-        provider_sub="seed-alex",
-    )
-    await crud.add_member(cal_id, mate, Role.contributor)
-
     at = lambda days, h=9, m=0: (now + timedelta(days=days)).replace(hour=h, minute=m, second=0, microsecond=0)
 
     # --- Past due (pending, due < today) ---
@@ -71,7 +57,7 @@ async def seed_demo_data() -> None:
     await _task(cal_id, uid, "1:1 with Alex", Severity.high, at(0, 13))
     await _task(cal_id, uid, "Order new keyboard", Severity.low, at(0, 18))
 
-    # --- Upcoming (tomorrow + next two days) ---
+    # --- Upcoming (tomorrow + next few days) ---
     await _task(cal_id, uid, "Prepare investor update", Severity.critical, at(1, 10))
     await _task(cal_id, uid, "Design review for onboarding flow", Severity.high, at(2, 14))
     await _task(cal_id, uid, "Book team lunch", Severity.low, at(3, 12))
@@ -83,6 +69,32 @@ async def seed_demo_data() -> None:
     await _task(cal_id, uid, "Fix login redirect bug", Severity.critical, at(-1, 10), TaskStatus.completed, y.replace(hour=11))
     await _task(cal_id, uid, "Clean up Downloads folder", Severity.low, at(-1, 9), TaskStatus.completed, y.replace(hour=9, minute=15))
 
-    await crud.log_activity(cal_id, demo, "created", "task", 'Created task "Prepare investor update"')
+    await crud.log_activity(cal_id, actor, "created", "task", 'Created task "Prepare investor update"')
+
+
+async def seed_demo_data() -> None:
+    existing = await crud.get_user_by_email(DEMO_EMAIL)
+    if existing:
+        logger.info("Seed skipped — demo user already present.")
+        return
+
+    demo = await crud.create_user(
+        email=DEMO_EMAIL,
+        name="Demo User",
+        picture="https://api.dicebear.com/7.x/initials/svg?seed=Demo User",
+        provider_sub="seed-demo",
+    )
+    cal_id = demo["default_calendar_id"]
+
+    # A contributor teammate to make collaboration/activity feel real.
+    mate = await crud.create_user(
+        email="alex@example.com",
+        name="Alex Rivera",
+        picture="https://api.dicebear.com/7.x/initials/svg?seed=Alex Rivera",
+        provider_sub="seed-alex",
+    )
+    await crud.add_member(cal_id, mate, Role.contributor)
+
+    await seed_sample_tasks(cal_id, demo["id"], demo)
     await crud.log_activity(cal_id, mate, "completed", "task", 'Completed task "Ship v1.2 release notes"')
     logger.info("Seeded demo user (%s) with sample tasks.", DEMO_EMAIL)

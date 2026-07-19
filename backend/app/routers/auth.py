@@ -8,10 +8,18 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from jose import JWTError
 
 from .. import crud
+from .. import database as dbm
 from ..config import settings
 from ..deps import get_current_user
-from ..models.auth import DevLoginRequest, GoogleLoginRequest, RefreshRequest, Token
+from ..models.auth import (
+    DevLoginRequest,
+    GoogleLoginRequest,
+    RefreshRequest,
+    SamplePromptRequest,
+    Token,
+)
 from ..models.user import UserProfileUpdate, UserPublic
+from ..seed import seed_sample_tasks
 from ..security import (
     REFRESH,
     create_access_token,
@@ -44,6 +52,26 @@ async def auth_config():
         "google_client_id": settings.google_client_id or None,
         "google_redirect_uri": settings.google_redirect_uri,
     }
+
+
+@router.post("/sample-prompt", response_model=UserPublic)
+async def resolve_sample_prompt(
+    body: SamplePromptRequest, user: dict = Depends(get_current_user)
+):
+    """Answer the one-time 'add sample tasks?' prompt shown to new users.
+
+    ``add=true`` seeds the sample tasks into the user's calendar (idempotent);
+    either way the prompt is marked seen so it never shows again.
+    """
+    cal = user.get("default_calendar_id")
+    if body.add and cal:
+        # Only seed if the samples aren't already there (idempotent on re-calls).
+        already = await dbm.col(dbm.TASKS).count_documents(
+            {"calendar_id": cal, "name": "Prepare investor update"}
+        )
+        if not already:
+            await seed_sample_tasks(cal, user["id"], user)
+    return await crud.update_user(user["id"], {"sample_prompt_seen": True})
 
 
 @router.post("/dev-login", response_model=Token)

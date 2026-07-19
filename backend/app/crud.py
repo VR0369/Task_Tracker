@@ -72,6 +72,7 @@ async def create_user(email: str, name: str, picture: str, provider_sub: str) ->
         "provider_sub": provider_sub,
         "settings": default_settings,
         "default_calendar_id": None,
+        "sample_prompt_seen": False,  # new user → show the one-time sample-tasks prompt
         "created_at": now(),
     }
     await dbm.col(dbm.USERS).insert_one(user)

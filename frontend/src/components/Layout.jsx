@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { Menu, X, Sun, Moon, Monitor, Plus, PanelLeftClose, PanelLeft } from 'lucide-react'
 import Sidebar from './Sidebar.jsx'
 import BottomNav from './BottomNav.jsx'
+import SampleTasksPrompt from './SampleTasksPrompt.jsx'
 import { useTheme } from '../theme/ThemeContext.jsx'
 
 function ThemeToggle() {
@@ -128,6 +129,9 @@ export default function Layout() {
       </motion.button>
 
       <BottomNav />
+
+      {/* One-time "add sample tasks?" prompt for brand-new users */}
+      <SampleTasksPrompt />
     </div>
   )
 }
