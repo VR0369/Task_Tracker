@@ -36,6 +36,9 @@ class Settings(BaseSettings):
     mongo_db_name: str = "task_tracker"
     seed_on_startup: bool = True
 
+    # --- Invitations ---
+    invite_expiry_days: int = 7
+
     # --- JWT ---
     jwt_secret: str = "CHANGE_ME_super_secret_dev_key_do_not_use_in_prod"
     jwt_algorithm: str = "HS256"

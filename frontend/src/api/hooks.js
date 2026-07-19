@@ -153,6 +153,27 @@ export function useInviteAction() {
   })
 }
 
+// Public token preview for the accept page (works logged-out).
+export function useInvitePreview(token) {
+  return useQuery({
+    queryKey: ['invitePreview', token],
+    queryFn: async () => (await api.get(`/invites/token/${token}`)).data,
+    enabled: !!token,
+    retry: 0,
+  })
+}
+
+export function useAcceptInvite() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (token) => (await api.post('/invites/accept', { token })).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: keys.invites })
+      qc.invalidateQueries({ queryKey: keys.calendars })
+    },
+  })
+}
+
 /* --------------------------- Home widgets ----------------------------- */
 export function useQuote() {
   return useQuery({

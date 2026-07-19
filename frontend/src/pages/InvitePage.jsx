@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import toast from 'react-hot-toast'
-import { UserPlus, Copy, Check, Shield, Users } from 'lucide-react'
+import { UserPlus, Copy, Check, Shield, Users, Mail } from 'lucide-react'
 import { SkeletonList } from '../components/Skeletons.jsx'
+import Modal from '../components/Modal.jsx'
 import { useInvites, useCreateInvite, useInviteAction, useCalendars } from '../api/hooks'
 import { fromNow } from '../utils/format'
 
@@ -11,6 +12,8 @@ const STATUS_STYLE = {
   awaiting_approval: 'bg-amber-400/15 text-amber-600',
   approved: 'bg-green-400/15 text-green-600',
   rejected: 'bg-red-400/15 text-red-600',
+  revoked: 'bg-red-400/15 text-red-600',
+  expired: 'bg-slate-400/15 text-slate-400',
 }
 
 export default function InvitePage() {
@@ -20,22 +23,19 @@ export default function InvitePage() {
   const createInvite = useCreateInvite()
   const action = useInviteAction()
   const [copied, setCopied] = useState(null)
+  const [created, setCreated] = useState(null) // { link, email, email_sent }
 
   const adminCal = (calendars || []).find((c) => c.my_role === 'admin')
   const isAdmin = !!adminCal
+  const memberName = Object.fromEntries((adminCal?.members || []).map((m) => [m.user_id, m.name]))
 
   const submit = (v) => {
     createInvite.mutate(
       { email: v.email, role: v.role, calendar_id: adminCal?.id },
       {
         onSuccess: (res) => {
-          const email = v.email
           reset({ email: '', role: 'contributor' })
-          if (res?.email_sent) {
-            toast.success(`Invitation emailed to ${email}`)
-          } else if (res?.link) {
-            copy(res.link) // email not configured/failed → copy link to share
-          }
+          setCreated({ link: res.link, email: v.email, email_sent: res.email_sent })
         },
       }
     )
@@ -45,7 +45,7 @@ export default function InvitePage() {
     try {
       await navigator.clipboard.writeText(link)
       setCopied(link)
-      toast.success('Invite link copied')
+      toast.success('Link copied successfully')
       setTimeout(() => setCopied(null), 2000)
     } catch {
       toast('Copy this link: ' + link)
@@ -108,6 +108,15 @@ export default function InvitePage() {
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-semibold">{m.name}</div>
                   <div className="truncate text-xs text-slate-500">{m.email}</div>
+                  <div className="truncate text-[11px] text-slate-400">
+                    {m.user_id === adminCal.owner_id
+                      ? 'Owner'
+                      : m.invited_by
+                      ? `Invited by ${memberName[m.invited_by] || 'admin'}${
+                          m.joined_at ? ` · joined ${fromNow(m.joined_at)}` : ''
+                        }`
+                      : 'Member'}
+                  </div>
                 </div>
                 <span className="chip bg-brand-500/15 capitalize text-brand-600">{m.role}</span>
               </div>
@@ -153,20 +162,77 @@ export default function InvitePage() {
                   </div>
                 )}
                 {inv.status === 'pending' && (
-                  <button
-                    className="btn-ghost !py-1.5"
-                    onClick={() =>
-                      copy(`${window.location.origin}/invite/accept?token=${inv.token}`)
-                    }
-                  >
-                    {copied ? <Check size={14} /> : <Copy size={14} />} Link
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      className="btn-ghost !py-1.5"
+                      onClick={() =>
+                        copy(`${window.location.origin}/invite/accept?token=${inv.token}`)
+                      }
+                    >
+                      {copied ? <Check size={14} /> : <Copy size={14} />} Link
+                    </button>
+                    <button
+                      className="btn-ghost !py-1.5 text-red-500"
+                      onClick={() => action.mutate({ id: inv.id, action: 'revoke' })}
+                    >
+                      Revoke
+                    </button>
+                  </div>
                 )}
               </div>
             ))}
           </div>
         )}
       </div>
+
+      {/* Invitation created — success panel with copy options */}
+      <Modal open={!!created} onClose={() => setCreated(null)} title="Invitation created">
+        {created && (
+          <div className="space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-grad-brand text-white">
+                <Mail size={18} />
+              </div>
+              <p className="text-sm text-slate-600 dark:text-slate-300">
+                {created.email_sent ? (
+                  <>
+                    An invitation email was sent to <strong>{created.email}</strong>. You can also
+                    share this link on WhatsApp, Slack, SMS, etc.:
+                  </>
+                ) : (
+                  <>
+                    Share this invite link with <strong>{created.email}</strong> (email wasn’t sent):
+                  </>
+                )}
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-white/50 bg-white/50 p-2 dark:border-white/10 dark:bg-white/5">
+              <input
+                readOnly
+                value={created.link}
+                onFocus={(e) => e.target.select()}
+                className="w-full bg-transparent px-2 text-xs outline-none"
+              />
+            </div>
+
+            <div className="flex gap-3">
+              <button onClick={() => copy(created.link)} className="btn-ghost flex-1">
+                {copied === created.link ? <Check size={15} /> : <Copy size={15} />} Copy Link
+              </button>
+              <button
+                onClick={async () => {
+                  await copy(created.link)
+                  setCreated(null)
+                }}
+                className="btn-primary flex-1"
+              >
+                Copy &amp; Close
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   )
 }

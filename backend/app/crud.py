@@ -132,12 +132,14 @@ def role_in_calendar(calendar: dict, user_id: str) -> Optional[str]:
     return None
 
 
-async def add_member(cal_id: str, user: dict, role: Role) -> None:
+async def add_member(cal_id: str, user: dict, role: Role, invited_by: Optional[str] = None) -> None:
     member = {
         "user_id": user["id"],
         "email": user["email"],
         "name": user["name"],
         "role": role.value,
+        "invited_by": invited_by,
+        "joined_at": now(),
     }
     # Remove any prior membership row, then add fresh.
     await dbm.col(dbm.CALENDARS).update_one(

@@ -6,6 +6,7 @@ import PageLoader from './components/PageLoader.jsx'
 
 // Route-based lazy loading (code splitting).
 const Login = lazy(() => import('./pages/Login.jsx'))
+const AcceptInvite = lazy(() => import('./pages/AcceptInvite.jsx'))
 const Home = lazy(() => import('./pages/Home.jsx'))
 const CreateTask = lazy(() => import('./pages/CreateTask.jsx'))
 const ViewTasks = lazy(() => import('./pages/ViewTasks.jsx'))
@@ -28,6 +29,7 @@ export default function App() {
       <Suspense fallback={<PageLoader />}>
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/invite/accept" element={<AcceptInvite />} />
           <Route
             element={
               <Protected>

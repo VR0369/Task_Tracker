@@ -1,15 +1,19 @@
-"""Invitation workflow.
+"""Invitation workflow (parent–child membership).
 
 Flow:
-  1. Admin creates an invite  -> status "pending", link with token returned.
-  2. Recipient logs in (Google) and accepts the token -> "awaiting_approval".
-  3. Admin approves -> recipient added as calendar member with the role.
-     (or rejects -> "rejected")
+  1. Admin creates an invite -> status "pending" (+ expiry), link is emailed.
+  2. Recipient signs in (Google) with the *invited* email and accepts the token
+     -> "awaiting_approval" (the signed-in email must match the invitation).
+  3. Admin approves -> recipient is added as a member of the admin's calendar —
+     a child member; no new workspace/account is created — or rejects.
+  Admins can also revoke a still-pending invite. Tokens are single-use and
+  expire; expired ones are lazily marked "expired".
 """
 
 from __future__ import annotations
 
 import secrets
+from datetime import timedelta, timezone
 from typing import List, Optional
 
 from fastapi import APIRouter, Body, Depends, HTTPException, status
@@ -19,10 +23,29 @@ from .. import database as dbm
 from ..config import settings
 from ..deps import get_current_user
 from ..models.enums import Role
-from ..models.misc import InvitationCreate, InvitationOut
+from ..models.misc import InvitationCreate, InvitationOut, InvitationPreview
 from ..services import mailer
 
 router = APIRouter(prefix="/invites", tags=["invites"])
+
+
+def _is_expired(inv: dict) -> bool:
+    exp = inv.get("expires_at")
+    if not exp:
+        return False
+    if exp.tzinfo is None:  # mock DB returns naive datetimes; treat as UTC
+        exp = exp.replace(tzinfo=timezone.utc)
+    return crud.now() > exp
+
+
+async def _maybe_expire(inv: dict) -> dict:
+    """Lazily flip a stale pending invite to 'expired'."""
+    if inv.get("status") == "pending" and _is_expired(inv):
+        await dbm.col(dbm.INVITATIONS).update_one(
+            {"_id": inv["_id"]}, {"$set": {"status": "expired"}}
+        )
+        inv["status"] = "expired"
+    return inv
 
 
 async def _require_admin(user: dict, calendar_id: str) -> dict:
@@ -43,32 +66,33 @@ async def create_invite(body: InvitationCreate, user: dict = Depends(get_current
     calendar_id = body.calendar_id or user.get("default_calendar_id")
     cal = await _require_admin(user, calendar_id)
 
-    token = secrets.token_urlsafe(24)
+    email = body.email.lower()
+    if any(m.get("email", "").lower() == email for m in cal.get("members", [])):
+        raise HTTPException(status.HTTP_409_CONFLICT, "That email is already a member")
+
+    now = crud.now()
+    token = secrets.token_urlsafe(32)  # ~43 chars, single-use
     inv = {
         "_id": crud.new_id(),
         "calendar_id": calendar_id,
-        "email": body.email.lower(),
+        "email": email,
         "role": body.role.value,
         "status": "pending",
         "token": token,
         "invited_by": user["id"],
         "claimed_by": None,
-        "created_at": crud.now(),
+        "created_at": now,
+        "expires_at": now + timedelta(days=settings.invite_expiry_days),
     }
     await dbm.col(dbm.INVITATIONS).insert_one(inv)
     await crud.log_activity(
         calendar_id, user, "invited", "user",
-        f'Invited {body.email} as {body.role.value}', inv["_id"],
+        f'Invited {email} as {body.role.value}', inv["_id"],
     )
     link = f"{settings.frontend_url}/invite/accept?token={token}"
-    # Best-effort email — the invitation + link are returned regardless, so the
-    # UI can fall back to copying the link if email isn't configured or fails.
     email_sent = await mailer.send_invite_email(
-        to=body.email.lower(),
-        link=link,
-        inviter_name=user.get("name", "A teammate"),
-        calendar_name=cal["name"],
-        role=body.role.value,
+        to=email, link=link, inviter_name=user.get("name", "A teammate"),
+        calendar_name=cal["name"], role=body.role.value,
     )
     return {
         "invitation": _out(crud.doc(inv), cal["name"]).model_dump(mode="json"),
@@ -89,11 +113,32 @@ async def list_invites(user: dict = Depends(get_current_user), calendar_id: Opti
         cal = await crud.get_calendar(cid)
         if not cal or crud.role_in_calendar(cal, user["id"]) != Role.admin.value:
             continue
-        cursor = dbm.col(dbm.INVITATIONS).find({"calendar_id": cid})
-        async for inv in cursor:
+        async for inv in dbm.col(dbm.INVITATIONS).find({"calendar_id": cid}):
+            inv = await _maybe_expire(inv)
             out.append(_out(crud.doc(inv), cal["name"]))
     out.sort(key=lambda i: i.created_at, reverse=True)
     return out
+
+
+@router.get("/token/{token}", response_model=InvitationPreview)
+async def preview_invite(token: str):
+    """Public preview for the accept page — no auth, non-sensitive fields only."""
+    inv = await dbm.col(dbm.INVITATIONS).find_one({"token": token})
+    if inv is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Invitation not found")
+    inv = await _maybe_expire(inv)
+    cal = await crud.get_calendar(inv["calendar_id"])
+    inviter = await crud.get_user(inv["invited_by"])
+    return InvitationPreview(
+        calendar_id=inv["calendar_id"],
+        calendar_name=cal["name"] if cal else "a workspace",
+        email=inv["email"],
+        role=Role(inv["role"]),
+        status=inv["status"],
+        inviter_name=inviter["name"] if inviter else "A teammate",
+        expires_at=inv.get("expires_at"),
+        expired=_is_expired(inv),
+    )
 
 
 @router.post("/accept", response_model=InvitationOut)
@@ -101,11 +146,20 @@ async def accept_invite(token: str = Body(..., embed=True), user: dict = Depends
     inv = await dbm.col(dbm.INVITATIONS).find_one({"token": token})
     if inv is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Invitation not found")
-    if inv["status"] not in ("pending",):
+    inv = await _maybe_expire(inv)
+    if inv["status"] == "expired" or _is_expired(inv):
+        raise HTTPException(status.HTTP_410_GONE, "This invitation has expired")
+    if inv["status"] != "pending":
         raise HTTPException(status.HTTP_409_CONFLICT, f"Invitation already {inv['status']}")
+    # Security: the signed-in user must be the person who was invited.
+    if user["email"].lower() != inv["email"].lower():
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            f"This invitation was sent to {inv['email']}. Sign in with that Google account to accept.",
+        )
     await dbm.col(dbm.INVITATIONS).update_one(
         {"_id": inv["_id"]},
-        {"$set": {"status": "awaiting_approval", "claimed_by": user["id"], "email": user["email"]}},
+        {"$set": {"status": "awaiting_approval", "claimed_by": user["id"]}},
     )
     await crud.log_activity(
         inv["calendar_id"], user, "requested_access", "user",
@@ -127,8 +181,10 @@ async def approve_invite(invite_id: str, user: dict = Depends(get_current_user))
     claimant = await crud.get_user(inv["claimed_by"])
     if claimant is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Claiming user not found")
-    await crud.add_member(inv["calendar_id"], claimant, Role(inv["role"]))
-    await dbm.col(dbm.INVITATIONS).update_one({"_id": invite_id}, {"$set": {"status": "approved"}})
+    await crud.add_member(inv["calendar_id"], claimant, Role(inv["role"]), invited_by=inv["invited_by"])
+    await dbm.col(dbm.INVITATIONS).update_one(
+        {"_id": invite_id}, {"$set": {"status": "approved", "accepted_at": crud.now()}}
+    )
     await crud.log_activity(
         inv["calendar_id"], user, "approved", "user",
         f'Approved {claimant["name"]} as {inv["role"]}', invite_id,
@@ -144,6 +200,23 @@ async def reject_invite(invite_id: str, user: dict = Depends(get_current_user)):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Invitation not found")
     await _require_admin(user, inv["calendar_id"])
     await dbm.col(dbm.INVITATIONS).update_one({"_id": invite_id}, {"$set": {"status": "rejected"}})
+    inv = await dbm.col(dbm.INVITATIONS).find_one({"_id": invite_id})
+    return _out(crud.doc(inv))
+
+
+@router.post("/{invite_id}/revoke", response_model=InvitationOut)
+async def revoke_invite(invite_id: str, user: dict = Depends(get_current_user)):
+    inv = await dbm.col(dbm.INVITATIONS).find_one({"_id": invite_id})
+    if inv is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Invitation not found")
+    await _require_admin(user, inv["calendar_id"])
+    if inv["status"] not in ("pending", "awaiting_approval", "expired"):
+        raise HTTPException(status.HTTP_409_CONFLICT, f"Cannot revoke a {inv['status']} invitation")
+    await dbm.col(dbm.INVITATIONS).update_one({"_id": invite_id}, {"$set": {"status": "revoked"}})
+    await crud.log_activity(
+        inv["calendar_id"], user, "revoked", "user",
+        f'Revoked invitation to {inv["email"]}', invite_id,
+    )
     inv = await dbm.col(dbm.INVITATIONS).find_one({"_id": invite_id})
     return _out(crud.doc(inv))
 

@@ -11,6 +11,8 @@ class CalendarMember(BaseModel):
     email: EmailStr
     name: str
     role: Role
+    invited_by: Optional[str] = None
+    joined_at: Optional[datetime] = None
 
 
 class CalendarOut(BaseModel):
@@ -34,10 +36,23 @@ class InvitationOut(BaseModel):
     calendar_name: Optional[str] = None
     email: EmailStr
     role: Role
-    status: str  # pending | awaiting_approval | approved | rejected
+    status: str  # pending | awaiting_approval | approved | rejected | revoked | expired
     token: str
     invited_by: str
     created_at: datetime
+    expires_at: Optional[datetime] = None
+
+
+class InvitationPreview(BaseModel):
+    """Public, non-sensitive view of an invitation (looked up by token)."""
+    calendar_id: str
+    calendar_name: str
+    email: EmailStr
+    role: Role
+    status: str
+    inviter_name: str
+    expires_at: Optional[datetime] = None
+    expired: bool = False
 
 
 class ActivityLogOut(BaseModel):

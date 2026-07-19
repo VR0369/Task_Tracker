@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import toast from 'react-hot-toast'
 import { Sparkles, ArrowRight } from 'lucide-react'
@@ -9,13 +9,18 @@ import { api } from '../api/client'
 export default function Login() {
   const { user, devLogin, googleLogin } = useAuth()
   const navigate = useNavigate()
+  const [sp] = useSearchParams()
   const [email, setEmail] = useState('')
   const [cfg, setCfg] = useState(null)
   const [busy, setBusy] = useState(false)
 
+  // Preserve an in-flight invitation across login (link opens /login?inviteToken=…).
+  const inviteToken = sp.get('inviteToken')
+  const dest = inviteToken ? `/invite/accept?token=${encodeURIComponent(inviteToken)}` : '/'
+
   useEffect(() => {
-    if (user) navigate('/', { replace: true })
-  }, [user, navigate])
+    if (user) navigate(dest, { replace: true })
+  }, [user, navigate, dest])
 
   useEffect(() => {
     api.get('/auth/config').then((r) => setCfg(r.data)).catch(() => {})
@@ -34,7 +39,7 @@ export default function Login() {
           setBusy(true)
           try {
             await googleLogin(resp.credential)
-            navigate('/', { replace: true })
+            navigate(dest, { replace: true })
           } catch {
             toast.error('Google login failed')
           } finally {
@@ -70,7 +75,7 @@ export default function Login() {
     setBusy(true)
     try {
       await googleLogin('mock:demo@example.com:Demo User')
-      navigate('/', { replace: true })
+      navigate(dest, { replace: true })
     } catch {
       toast.error('Login failed')
     } finally {
@@ -84,7 +89,7 @@ export default function Login() {
     setBusy(true)
     try {
       await devLogin(email.trim())
-      navigate('/', { replace: true })
+      navigate(dest, { replace: true })
     } catch (err) {
       toast.error(err?.response?.data?.detail || 'Login failed')
     } finally {
