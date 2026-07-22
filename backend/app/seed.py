@@ -20,7 +20,7 @@ logger = logging.getLogger("task_tracker.seed")
 DEMO_EMAIL = "demo@example.com"
 
 
-async def _task(cal_id, user_id, name, severity, due_at, status=TaskStatus.pending, completed_at=None, notes=""):
+async def _task(cal_id, user_id, name, severity, due_at, status=TaskStatus.pending, completed_at=None, notes="", start_at=None):
     now = crud.now()
     await dbm.col(dbm.TASKS).insert_one(
         {
@@ -29,6 +29,7 @@ async def _task(cal_id, user_id, name, severity, due_at, status=TaskStatus.pendi
             "name": name,
             "severity": severity.value,
             "status": status.value,
+            "start_at": start_at,
             "due_at": due_at,
             "notes": notes,
             "created_by": user_id,
@@ -47,21 +48,21 @@ async def seed_sample_tasks(cal_id, uid, actor) -> None:
     at = lambda days, h=9, m=0: (now + timedelta(days=days)).replace(hour=h, minute=m, second=0, microsecond=0)
 
     # --- Past due (pending, due < today) ---
-    await _task(cal_id, uid, "Submit quarterly tax documents", Severity.critical, at(-3, 17), notes="Attach receipts and mileage log.")
+    await _task(cal_id, uid, "Submit quarterly tax documents", Severity.critical, at(-3, 17), notes="Attach receipts and mileage log.", start_at=at(-6, 9))
     await _task(cal_id, uid, "Reply to vendor contract email", Severity.high, at(-2, 11))
     await _task(cal_id, uid, "Renew domain subscription", Severity.high, at(-1, 14))
     await _task(cal_id, uid, "Water the office plants", Severity.low, at(-1, 8))
 
     # --- Due today ---
-    await _task(cal_id, uid, "Finish sprint planning deck", Severity.critical, at(0, 15), notes="- Roadmap slide\n- Capacity table\n- Risks")
+    await _task(cal_id, uid, "Finish sprint planning deck", Severity.critical, at(0, 15), notes="- Roadmap slide\n- Capacity table\n- Risks", start_at=at(-2, 9))
     await _task(cal_id, uid, "1:1 with Alex", Severity.high, at(0, 13))
     await _task(cal_id, uid, "Order new keyboard", Severity.low, at(0, 18))
 
     # --- Upcoming (tomorrow + next few days) ---
-    await _task(cal_id, uid, "Prepare investor update", Severity.critical, at(1, 10))
-    await _task(cal_id, uid, "Design review for onboarding flow", Severity.high, at(2, 14))
+    await _task(cal_id, uid, "Prepare investor update", Severity.critical, at(1, 10), start_at=at(0, 9))
+    await _task(cal_id, uid, "Design review for onboarding flow", Severity.high, at(2, 14), start_at=at(1, 9))
     await _task(cal_id, uid, "Book team lunch", Severity.low, at(3, 12))
-    await _task(cal_id, uid, "Draft blog post on productivity", Severity.low, at(5, 9))
+    await _task(cal_id, uid, "Draft blog post on productivity", Severity.low, at(5, 9), start_at=at(3, 9))
 
     # --- Completed yesterday ---
     y = now - timedelta(days=1)

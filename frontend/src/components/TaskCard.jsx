@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion'
-import { Pencil, Trash2, Clock, CalendarDays } from 'lucide-react'
+import { Pencil, Trash2, Clock, CalendarDays, Play } from 'lucide-react'
 import SeverityBadge from './SeverityBadge.jsx'
 import { fmtDate, fmtTime } from '../utils/format'
 
@@ -44,7 +44,12 @@ export default function TaskCard({ task, onToggle, onEdit, onDelete, canWrite = 
           <SeverityBadge severity={task.severity} />
         </div>
         <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
-          <span className="inline-flex items-center gap-1">
+          {task.start_at && (
+            <span className="inline-flex items-center gap-1" title="Starts">
+              <Play size={13} /> {fmtDate(task.start_at)}, {fmtTime(task.start_at)}
+            </span>
+          )}
+          <span className="inline-flex items-center gap-1" title="Due">
             <CalendarDays size={13} /> {fmtDate(task.due_at)}
           </span>
           <span className="inline-flex items-center gap-1">

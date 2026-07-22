@@ -46,6 +46,53 @@ async def test_task_crud_and_dashboard(client, auth_headers):
 
 
 @pytest.mark.asyncio
+async def test_start_date(client, auth_headers):
+    # start_at is optional
+    plain = await client.post(
+        "/api/v1/tasks",
+        headers=auth_headers,
+        json={"name": "No start", "due_at": _iso(1)},
+    )
+    assert plain.status_code == 201
+    assert plain.json()["start_at"] is None
+
+    resp = await client.post(
+        "/api/v1/tasks",
+        headers=auth_headers,
+        json={"name": "Has start", "due_at": _iso(3), "start_at": _iso(1)},
+    )
+    assert resp.status_code == 201, resp.text
+    task_id = resp.json()["id"]
+    assert resp.json()["start_at"] is not None
+
+    # Start after due is rejected on create...
+    bad = await client.post(
+        "/api/v1/tasks",
+        headers=auth_headers,
+        json={"name": "Backwards", "due_at": _iso(1), "start_at": _iso(4)},
+    )
+    assert bad.status_code == 422
+
+    # ...and on update, including against the task's stored due date.
+    bad_patch = await client.patch(
+        f"/api/v1/tasks/{task_id}", headers=auth_headers, json={"start_at": _iso(5)}
+    )
+    assert bad_patch.status_code == 400
+
+    # Explicit null clears it
+    cleared = await client.patch(
+        f"/api/v1/tasks/{task_id}", headers=auth_headers, json={"start_at": None}
+    )
+    assert cleared.status_code == 200
+    assert cleared.json()["start_at"] is None
+
+    ordered = await client.get(
+        "/api/v1/tasks", headers=auth_headers, params={"sort": "start_at"}
+    )
+    assert ordered.status_code == 200
+
+
+@pytest.mark.asyncio
 async def test_filters_and_sort(client, auth_headers):
     await client.post(
         "/api/v1/tasks",

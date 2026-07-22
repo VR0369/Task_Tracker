@@ -38,7 +38,14 @@ export default function CalendarPage() {
     const newDue = dayjs(dateStr)
       .hour(dayjs(task.due_at).hour())
       .minute(dayjs(task.due_at).minute())
-    update.mutate({ id: task.id, due_at: newDue.toISOString() })
+    const payload = { id: task.id, due_at: newDue.toISOString() }
+    // Shift the start date by the same amount so the task keeps its duration
+    // (and never ends up starting after it is due).
+    if (task.start_at) {
+      const shift = newDue.diff(dayjs(task.due_at))
+      payload.start_at = dayjs(task.start_at).add(shift, 'millisecond').toISOString()
+    }
+    update.mutate(payload)
   }
 
   const submitEdit = (payload) =>

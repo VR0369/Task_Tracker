@@ -41,7 +41,7 @@ services:
         value: "false"
       - key: WEATHERAPI_API_KEY
         sync: false
-      # --- On This Day (byabbe.se) + Quotes (ZenQuotes) — live, keyless ---
+      # --- On This Day (live Google search, byabbe.se fallback) + Quotes (ZenQuotes) — keyless ---
       - key: MOCK_HISTORY
         value: "false"
       - key: MOCK_QUOTES

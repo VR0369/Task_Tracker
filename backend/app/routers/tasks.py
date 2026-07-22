@@ -19,6 +19,13 @@ _ROLE_RANK = {Role.viewer: 0, Role.contributor: 1, Role.admin: 2}
 _SEVERITY_ORDER = {Severity.critical.value: 0, Severity.high.value: 1, Severity.low.value: 2}
 
 
+def _utc(d: Optional[datetime]) -> Optional[datetime]:
+    """Stored datetimes are always tz-aware UTC; naive input is assumed UTC."""
+    if d is not None and d.tzinfo is None:
+        return d.replace(tzinfo=timezone.utc)
+    return d
+
+
 def _serialize(t: dict) -> TaskOut:
     return TaskOut(**crud.doc(t) if "_id" in t else t)
 
@@ -52,7 +59,7 @@ async def list_tasks(
     task_status: Optional[TaskStatus] = Query(default=None, alias="status"),
     due_from: Optional[datetime] = None,
     due_to: Optional[datetime] = None,
-    sort: str = Query(default="due_at", pattern="^(due_at|severity|name)$"),
+    sort: str = Query(default="due_at", pattern="^(due_at|start_at|severity|name)$"),
     order: str = Query(default="asc", pattern="^(asc|desc)$"),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=200),
@@ -83,6 +90,9 @@ async def list_tasks(
         items.sort(key=lambda t: (_SEVERITY_ORDER.get(t["severity"], 9), t["due_at"]), reverse=reverse)
     elif sort == "name":
         items.sort(key=lambda t: t["name"].lower(), reverse=reverse)
+    elif sort == "start_at":
+        # Tasks without a start date sort by their due date instead.
+        items.sort(key=lambda t: t.get("start_at") or t["due_at"], reverse=reverse)
     else:  # due_at (default): earliest date, then earliest time
         items.sort(key=lambda t: t["due_at"], reverse=reverse)
 
@@ -104,15 +114,14 @@ async def create_task(body: TaskCreate, user: dict = Depends(get_current_user)):
     await _require_write(user, calendar_id, Role.contributor)
 
     now = crud.now()
-    due = body.due_at
-    if due.tzinfo is None:
-        due = due.replace(tzinfo=timezone.utc)
+    due = _utc(body.due_at)
     task = {
         "_id": crud.new_id(),
         "calendar_id": calendar_id,
         "name": body.name,
         "severity": body.severity.value,
         "status": TaskStatus.pending.value,
+        "start_at": _utc(body.start_at),
         "due_at": due,
         "notes": body.notes or "",
         "created_by": user["id"],
@@ -155,10 +164,17 @@ async def update_task(task_id: str, body: TaskUpdate, user: dict = Depends(get_c
     if body.severity is not None:
         changes["severity"] = body.severity.value
     if body.due_at is not None:
-        due = body.due_at
-        if due.tzinfo is None:
-            due = due.replace(tzinfo=timezone.utc)
-        changes["due_at"] = due
+        changes["due_at"] = _utc(body.due_at)
+    # Sent explicitly as null -> clear the start date; omitted -> leave as is.
+    if "start_at" in body.model_fields_set:
+        changes["start_at"] = _utc(body.start_at)
+    # Compare against whichever of the pair is not being changed in this request.
+    start = changes.get("start_at", _utc(task.get("start_at")))
+    due = changes.get("due_at", _utc(task["due_at"]))
+    if start is not None and start > due:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, "Start date cannot be after the due date"
+        )
     if body.notes is not None:
         changes["notes"] = body.notes
     if body.status is not None:

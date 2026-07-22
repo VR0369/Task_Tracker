@@ -81,6 +81,7 @@ async def create_indexes() -> None:
         await col(TASKS).create_index([("calendar_id", 1), ("status", 1), ("due_at", 1)])
         await col(TASKS).create_index([("calendar_id", 1), ("severity", 1)])
         await col(TASKS).create_index("due_at")
+        await col(TASKS).create_index("start_at")
         await col(INVITATIONS).create_index("token", unique=True)
         await col(INVITATIONS).create_index([("calendar_id", 1), ("email", 1)])
         await col(ACTIVITY_LOGS).create_index([("calendar_id", 1), ("created_at", -1)])

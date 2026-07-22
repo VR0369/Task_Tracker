@@ -52,6 +52,9 @@ export default function ViewTasks() {
     const sorter = (a, b) => {
       if (sort === 'severity') return SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]
       if (sort === 'name') return a.name.localeCompare(b.name)
+      // Tasks without a start date fall back to their due date.
+      if (sort === 'start_at')
+        return new Date(a.start_at || a.due_at) - new Date(b.start_at || b.due_at)
       return new Date(a.due_at) - new Date(b.due_at)
     }
     Object.values(g).forEach((arr) => arr.sort(sorter))
@@ -95,6 +98,7 @@ export default function ViewTasks() {
         </select>
         <select className="input !min-h-[42px] w-auto" value={sort} onChange={(e) => setSort(e.target.value)}>
           <option value="due_at">Sort: Due date</option>
+          <option value="start_at">Sort: Start date</option>
           <option value="severity">Sort: Severity</option>
           <option value="name">Sort: A–Z</option>
         </select>
