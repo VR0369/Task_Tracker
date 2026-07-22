@@ -22,7 +22,7 @@ export default function TaskCard({ task, onToggle, onEdit, onDelete, canWrite = 
         className={`mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-md border-2 transition ${
           done
             ? 'border-green-500 bg-green-500 text-white'
-            : 'border-slate-300 dark:border-white/20 hover:border-brand-500'
+            : 'border-slate-400 bg-white/80 dark:border-white/30 dark:bg-white/5 hover:border-brand-500'
         } disabled:opacity-40`}
       >
         {done && (
