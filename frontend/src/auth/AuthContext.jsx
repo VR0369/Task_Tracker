@@ -1,11 +1,22 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react'
 import { api, loadTokens, saveTokens } from '../api/client'
+import { useTheme } from '../theme/ThemeContext.jsx'
 
 const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
+  const { setTheme, setAccent } = useTheme()
+
+  // Appearance is stored per-user on the server, so it follows them across devices.
+  const hydrateAppearance = useCallback(
+    (u) => {
+      if (u?.settings?.theme) setTheme(u.settings.theme)
+      if (u?.settings?.accent_color) setAccent(u.settings.accent_color)
+    },
+    [setTheme, setAccent]
+  )
 
   const refreshUser = useCallback(async () => {
     const tokens = loadTokens()
@@ -17,13 +28,14 @@ export function AuthProvider({ children }) {
     try {
       const { data } = await api.get('/auth/me')
       setUser(data)
+      hydrateAppearance(data)
     } catch {
       setUser(null)
       saveTokens(null)
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [hydrateAppearance])
 
   useEffect(() => {
     refreshUser()
@@ -32,6 +44,7 @@ export function AuthProvider({ children }) {
   const applyLogin = (data) => {
     saveTokens({ access_token: data.access_token, refresh_token: data.refresh_token })
     setUser(data.user)
+    hydrateAppearance(data.user)
   }
 
   // Dev / mock login (email only).

@@ -4,6 +4,21 @@
 
 :root {
   color-scheme: light dark;
+
+  /* Brand scale as RGB channels so Tailwind opacity modifiers keep working.
+     ThemeContext overwrites these at runtime from the chosen accent color. */
+  --accent: #7c5cff;
+  --brand-50: 242 239 255;
+  --brand-100: 230 224 255;
+  --brand-200: 207 194 255;
+  --brand-300: 176 155 255;
+  --brand-400: 149 118 255;
+  --brand-500: 124 92 255;
+  --brand-600: 106 63 242;
+  --brand-700: 90 47 212;
+  --brand-800: 74 40 171;
+  --brand-900: 61 37 137;
+  --brand-alt: 79 140 255;
 }
 
 html,
@@ -39,12 +54,12 @@ body {
   opacity: 0.35;
 }
 .app-bg::before {
-  background: radial-gradient(circle at 30% 30%, #7c5cff, transparent 60%);
+  background: radial-gradient(circle at 30% 30%, rgb(var(--brand-500)), transparent 60%);
   top: -12rem;
   left: -10rem;
 }
 .app-bg::after {
-  background: radial-gradient(circle at 70% 70%, #4f8cff, transparent 60%);
+  background: radial-gradient(circle at 70% 70%, rgb(var(--brand-alt)), transparent 60%);
   bottom: -14rem;
   right: -12rem;
 }
