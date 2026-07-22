@@ -116,22 +116,21 @@ body {
 }
 
 /* Subtle blinking for past-due cards (respects reduced motion) */
-.blink-red {
-  animation: blinkred 2.6s ease-in-out infinite;
+.blink-pulse {
+  animation: blinkpulse 2.6s ease-in-out infinite;
 }
-@keyframes blinkred {
+@keyframes blinkpulse {
   0%,
   100% {
-    background-color: rgba(239, 68, 68, 0.08);
+    opacity: 1;
   }
   50% {
-    background-color: rgba(239, 68, 68, 0.18);
+    opacity: 0.82;
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .blink-red {
+  .blink-pulse {
     animation: none;
-    background-color: rgba(239, 68, 68, 0.1);
   }
 }
 

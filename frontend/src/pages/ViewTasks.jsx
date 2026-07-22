@@ -17,9 +17,9 @@ import {
 import { bucketOf, SEVERITY_ORDER } from '../utils/format'
 
 const GROUPS = [
-  { key: 'past_due', label: 'Past Due', icon: AlertTriangle, cls: 'blink-red', tint: 'text-red-600' },
-  { key: 'today', label: "Today's Tasks", icon: Sun, cls: 'bg-amber-400/10', tint: 'text-amber-600' },
-  { key: 'future', label: 'Future Tasks', icon: Sparkles, cls: 'bg-green-400/10', tint: 'text-green-600' },
+  { key: 'past_due', label: 'Past Due', icon: AlertTriangle, cls: 'bg-grad-red blink-pulse', tint: 'text-white' },
+  { key: 'today', label: "Today's Tasks", icon: Sun, cls: 'bg-grad-yellow', tint: 'text-white' },
+  { key: 'future', label: 'Future Tasks', icon: Sparkles, cls: 'bg-grad-blue', tint: 'text-white' },
 ]
 
 export default function ViewTasks() {
