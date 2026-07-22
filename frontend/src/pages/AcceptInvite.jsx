@@ -7,7 +7,7 @@ import { useInvitePreview, useAcceptInvite } from '../api/hooks'
 
 const STATUS_MSG = {
   awaiting_approval: 'This invitation was already accepted and is awaiting the admin’s approval.',
-  approved: 'This invitation was already approved — you’re a member of the workspace.',
+  approved: 'This invitation was already accepted — you’re a member of the workspace.',
   rejected: 'This invitation was declined.',
   revoked: 'This invitation was revoked by the admin.',
   expired: 'This invitation has expired. Ask the admin to send a new one.',
@@ -80,7 +80,7 @@ export default function AcceptInvite() {
   const onAccept = () => {
     accept.mutate(token, {
       onSuccess: () => {
-        toast.success('Request sent — awaiting the admin’s approval')
+        toast.success(`You’ve joined ${inv.calendar_name}`)
         navigate('/', { replace: true })
       },
       onError: (e) => toast.error(e?.response?.data?.detail || 'Could not accept invitation'),

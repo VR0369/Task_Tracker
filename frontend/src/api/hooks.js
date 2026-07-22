@@ -170,6 +170,7 @@ export function useAcceptInvite() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: keys.invites })
       qc.invalidateQueries({ queryKey: keys.calendars })
+      invalidateBoard(qc)
     },
   })
 }

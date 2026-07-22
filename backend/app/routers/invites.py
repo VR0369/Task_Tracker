@@ -2,12 +2,12 @@
 
 Flow:
   1. Admin creates an invite -> status "pending" (+ expiry), link is emailed.
-  2. Recipient signs in (Google) with the *invited* email and accepts the token
-     -> "awaiting_approval" (the signed-in email must match the invitation).
-  3. Admin approves -> recipient is added as a member of the admin's calendar —
-     a child member; no new workspace/account is created — or rejects.
-  Admins can also revoke a still-pending invite. Tokens are single-use and
-  expire; expired ones are lazily marked "expired".
+  2. Recipient signs in (Google) with the *invited* email and accepts the
+     token -> the signed-in email must match the invitation, and they are
+     immediately added as a member of the admin's calendar (a child member;
+     no new workspace is created) and their default calendar switches to it.
+  Admins can also revoke a still-pending invite, or remove a member later.
+  Tokens are single-use and expire; expired ones are lazily marked "expired".
 """
 
 from __future__ import annotations
@@ -157,13 +157,17 @@ async def accept_invite(token: str = Body(..., embed=True), user: dict = Depends
             status.HTTP_403_FORBIDDEN,
             f"This invitation was sent to {inv['email']}. Sign in with that Google account to accept.",
         )
+    # The email match above is the only vetting this app does, so join immediately
+    # rather than leaving the member stranded on their own calendar awaiting approval.
+    await crud.add_member(inv["calendar_id"], user, Role(inv["role"]), invited_by=inv["invited_by"])
+    await crud.update_user(user["id"], {"default_calendar_id": inv["calendar_id"]})
     await dbm.col(dbm.INVITATIONS).update_one(
         {"_id": inv["_id"]},
-        {"$set": {"status": "awaiting_approval", "claimed_by": user["id"]}},
+        {"$set": {"status": "approved", "claimed_by": user["id"], "accepted_at": crud.now()}},
     )
     await crud.log_activity(
-        inv["calendar_id"], user, "requested_access", "user",
-        f'{user["name"]} accepted an invitation and awaits approval', inv["_id"],
+        inv["calendar_id"], user, "joined", "user",
+        f'{user["name"]} joined as {inv["role"]}', inv["_id"],
     )
     inv = await dbm.col(dbm.INVITATIONS).find_one({"_id": inv["_id"]})
     return _out(crud.doc(inv))

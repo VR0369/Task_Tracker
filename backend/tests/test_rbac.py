@@ -24,10 +24,8 @@ async def test_viewer_cannot_create(client):
     viewer = (await client.post("/api/v1/auth/dev-login", json={"email": "viewer@example.com"})).json()
     viewer_h = {"Authorization": f"Bearer {viewer['access_token']}"}
 
-    await client.post("/api/v1/invites/accept", headers=viewer_h, json={"token": token})
-    invites = (await client.get("/api/v1/invites", headers=admin_h)).json()
-    pending = [i for i in invites if i["status"] == "awaiting_approval"][0]
-    await client.post(f"/api/v1/invites/{pending['id']}/approve", headers=admin_h)
+    accept = await client.post("/api/v1/invites/accept", headers=viewer_h, json={"token": token})
+    assert accept.json()["status"] == "approved"
 
     # Viewer now a member but must not be able to create a task on that calendar.
     resp = await client.post(
