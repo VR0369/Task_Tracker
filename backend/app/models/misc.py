@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import List, Optional
 
 from pydantic import BaseModel, EmailStr, Field
@@ -79,6 +79,8 @@ class DashboardResponse(BaseModel):
     due_today: DashboardCard
     upcoming: DashboardCard
     completed_yesterday: DashboardCard
+    # Last due date (in the user's timezone) counted by the `upcoming` card.
+    upcoming_end: date
     generated_at: datetime
 
 

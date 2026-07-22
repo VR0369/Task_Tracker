@@ -79,5 +79,6 @@ async def get_dashboard(user: dict = Depends(get_current_user)):
         due_today=DashboardCard(**due_today),
         upcoming=DashboardCard(**upcoming),
         completed_yesterday=DashboardCard(**completed_yesterday),
+        upcoming_end=upcoming_end,
         generated_at=now,
     )

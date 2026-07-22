@@ -2,6 +2,7 @@ import { motion } from 'framer-motion'
 import { AlertTriangle, CalendarClock, CalendarRange, CheckCircle2 } from 'lucide-react'
 import Counter from './Counter.jsx'
 import { CardSkeleton } from './Skeletons.jsx'
+import { fmtDate } from '../utils/format.js'
 
 const CARDS = [
   { key: 'past_due', label: 'Past Due', grad: 'bg-grad-red', icon: AlertTriangle },
@@ -10,7 +11,7 @@ const CARDS = [
   { key: 'completed_yesterday', label: 'Completed Yesterday', grad: 'bg-grad-green', icon: CheckCircle2 },
 ]
 
-function Card({ label, grad, icon: Icon, data, index }) {
+function Card({ label, subLabel, grad, icon: Icon, data, index }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 14 }}
@@ -24,6 +25,7 @@ function Card({ label, grad, icon: Icon, data, index }) {
       </div>
       <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide opacity-90">
         <Icon size={16} /> {label}
+        {subLabel && <span className="normal-case tracking-normal opacity-75">{subLabel}</span>}
       </div>
       <div className="mt-2 font-display text-5xl font-bold">
         <Counter value={data?.total ?? 0} />
@@ -61,7 +63,13 @@ export default function DashboardCards({ data, isLoading }) {
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
       {CARDS.map((c, i) => (
-        <Card key={c.key} {...c} data={data?.[c.key]} index={i} />
+        <Card
+          key={c.key}
+          {...c}
+          data={data?.[c.key]}
+          subLabel={c.key === 'upcoming' && data?.upcoming_end ? `till ${fmtDate(data.upcoming_end, 'MMM D')}` : null}
+          index={i}
+        />
       ))}
     </div>
   )
