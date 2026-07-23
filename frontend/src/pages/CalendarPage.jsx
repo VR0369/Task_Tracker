@@ -2,20 +2,26 @@ import { useMemo, useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import Modal from '../components/Modal.jsx'
 import TaskForm from '../components/TaskForm.jsx'
-import { useTasks, useUpdateTask } from '../api/hooks'
+import ScopeTabs from '../components/ScopeTabs.jsx'
+import { useTasks, useUpdateTask, useCalendars } from '../api/hooks'
 import { dayjs, SEVERITY, fmtTime } from '../utils/format'
 import { useAuth } from '../auth/AuthContext.jsx'
+import { useScope } from '../scope/ScopeContext.jsx'
 
 const VIEWS = ['month', 'week', 'day']
 
 export default function CalendarPage() {
   const { user } = useAuth()
+  const { scope, setScope } = useScope()
   const [view, setView] = useState(user?.settings?.default_calendar_view || 'month')
   const [cursor, setCursor] = useState(dayjs())
   const [editing, setEditing] = useState(null)
   const [dragId, setDragId] = useState(null)
 
-  const { data } = useTasks({ page_size: 200 })
+  const { data: calendars } = useCalendars()
+  const hasShared = (calendars || []).some((c) => c.owner_id !== user?.id)
+
+  const { data } = useTasks({ page_size: 200, scope })
   const update = useUpdateTask()
 
   const byDay = useMemo(() => {
@@ -64,18 +70,21 @@ export default function CalendarPage() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="font-display text-2xl font-bold">Calendar</h1>
-        <div className="flex items-center gap-1 rounded-xl bg-white/60 dark:bg-white/5 p-0.5 border border-white/50 dark:border-white/10">
-          {VIEWS.map((v) => (
-            <button
-              key={v}
-              onClick={() => setView(v)}
-              className={`rounded-lg px-3 py-1.5 text-sm font-semibold capitalize transition ${
-                view === v ? 'bg-grad-brand text-white' : 'text-slate-500'
-              }`}
-            >
-              {v}
-            </button>
-          ))}
+        <div className="flex items-center gap-3">
+          {hasShared && <ScopeTabs value={scope} onChange={setScope} />}
+          <div className="flex items-center gap-1 rounded-xl bg-white/60 dark:bg-white/5 p-0.5 border border-white/50 dark:border-white/10">
+            {VIEWS.map((v) => (
+              <button
+                key={v}
+                onClick={() => setView(v)}
+                className={`rounded-lg px-3 py-1.5 text-sm font-semibold capitalize transition ${
+                  view === v ? 'bg-grad-brand text-white' : 'text-slate-500'
+                }`}
+              >
+                {v}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -101,7 +110,9 @@ export default function CalendarPage() {
         {view === 'week' && (
           <WeekGrid cursor={cursor} byDay={byDay} onOpen={setEditing} onDrop={onDrop} setDragId={setDragId} />
         )}
-        {view === 'day' && <DayList cursor={cursor} byDay={byDay} onOpen={setEditing} />}
+        {view === 'day' && (
+          <DayList cursor={cursor} byDay={byDay} onOpen={setEditing} showCreator={scope === 'shared'} />
+        )}
       </div>
 
       <p className="text-center text-xs text-slate-400">
@@ -210,7 +221,7 @@ function WeekGrid({ cursor, byDay, onOpen, onDrop, setDragId }) {
   )
 }
 
-function DayList({ cursor, byDay, onOpen }) {
+function DayList({ cursor, byDay, onOpen, showCreator }) {
   const k = cursor.format('YYYY-MM-DD')
   const items = byDay[k] || []
   if (!items.length) return <p className="py-8 text-center text-sm text-slate-500">No tasks this day.</p>
@@ -229,6 +240,9 @@ function DayList({ cursor, byDay, onOpen }) {
             <span className={`flex-1 font-medium ${t.status === 'completed' ? 'line-through opacity-50' : ''}`}>
               {t.name}
             </span>
+            {showCreator && t.created_by_name && (
+              <span className="text-xs text-slate-500">{t.created_by_name}</span>
+            )}
           </button>
         )
       })}

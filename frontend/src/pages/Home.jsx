@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Clock, Activity as ActivityIcon, CalendarClock, ArrowRight, UserRound } from 'lucide-react'
@@ -12,12 +11,13 @@ import SeverityBadge from '../components/SeverityBadge.jsx'
 import EmptyState from '../components/EmptyState.jsx'
 import { SkeletonList } from '../components/Skeletons.jsx'
 import { useAuth } from '../auth/AuthContext.jsx'
+import { useScope } from '../scope/ScopeContext.jsx'
 import { useDashboard, useTasks, useActivity, useCompleteTask, useCalendars } from '../api/hooks'
 import { bucketOf, fmtTime, fromNow } from '../utils/format'
 
 export default function Home() {
   const { user } = useAuth()
-  const [scope, setScope] = useState('personal')
+  const { scope, setScope } = useScope()
   const { data: calendars } = useCalendars()
   const hasShared = (calendars || []).some((c) => c.owner_id !== user?.id)
 

@@ -1,9 +1,16 @@
 import { motion } from 'framer-motion'
-import { Pencil, Trash2, Clock, CalendarDays, Play } from 'lucide-react'
+import { Pencil, Trash2, Clock, CalendarDays, Play, UserRound } from 'lucide-react'
 import SeverityBadge from './SeverityBadge.jsx'
 import { fmtDate, fmtTime } from '../utils/format'
 
-export default function TaskCard({ task, onToggle, onEdit, onDelete, canWrite = true }) {
+export default function TaskCard({
+  task,
+  onToggle,
+  onEdit,
+  onDelete,
+  canWrite = true,
+  showCreator = false,
+}) {
   const done = task.status === 'completed'
   return (
     <motion.div
@@ -55,6 +62,14 @@ export default function TaskCard({ task, onToggle, onEdit, onDelete, canWrite = 
           <span className="inline-flex items-center gap-1">
             <Clock size={13} /> {fmtTime(task.due_at)}
           </span>
+          {showCreator && task.created_by_name && (
+            <span
+              className="inline-flex items-center gap-1 rounded-full bg-slate-500/10 px-2 py-0.5 text-slate-600 dark:text-slate-300"
+              title={task.created_by_email}
+            >
+              <UserRound size={13} /> {task.created_by_name}
+            </span>
+          )}
         </div>
         {task.notes && (
           <p className="mt-2 whitespace-pre-wrap text-sm text-slate-600 dark:text-slate-300 line-clamp-3">

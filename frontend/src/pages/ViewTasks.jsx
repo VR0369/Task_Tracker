@@ -6,6 +6,7 @@ import TaskCard from '../components/TaskCard.jsx'
 import Modal from '../components/Modal.jsx'
 import TaskForm from '../components/TaskForm.jsx'
 import EmptyState from '../components/EmptyState.jsx'
+import ScopeTabs from '../components/ScopeTabs.jsx'
 import { SkeletonList } from '../components/Skeletons.jsx'
 import {
   useTasks,
@@ -14,6 +15,8 @@ import {
   useDeleteTask,
   useCalendars,
 } from '../api/hooks'
+import { useAuth } from '../auth/AuthContext.jsx'
+import { useScope } from '../scope/ScopeContext.jsx'
 import { bucketOf, SEVERITY_ORDER } from '../utils/format'
 
 const GROUPS = [
@@ -41,6 +44,8 @@ const GROUPS = [
 ]
 
 export default function ViewTasks() {
+  const { user } = useAuth()
+  const { scope, setScope } = useScope()
   const [search, setSearch] = useState('')
   const [severity, setSeverity] = useState('')
   const [sort, setSort] = useState('due_at')
@@ -49,12 +54,12 @@ export default function ViewTasks() {
   const [deleting, setDeleting] = useState(null)
 
   const params = useMemo(() => {
-    const p = { sort, order: 'asc', page_size: 200 }
+    const p = { sort, order: 'asc', page_size: 200, scope }
     if (search) p.search = search
     if (severity) p.severity = severity
     if (!showCompleted) p.status = 'pending'
     return p
-  }, [search, severity, sort, showCompleted])
+  }, [search, severity, sort, showCompleted, scope])
 
   const { data, isLoading } = useTasks(params)
   const { data: calendars } = useCalendars()
@@ -62,6 +67,7 @@ export default function ViewTasks() {
   const update = useUpdateTask()
   const del = useDeleteTask()
 
+  const hasShared = (calendars || []).some((c) => c.owner_id !== user?.id)
   const canWrite = !calendars || calendars.some((c) => c.my_role !== 'viewer')
 
   const grouped = useMemo(() => {
@@ -92,9 +98,12 @@ export default function ViewTasks() {
           <h1 className="font-display text-2xl font-bold">View Tasks</h1>
           <p className="text-sm text-slate-500">Grouped automatically by due date.</p>
         </div>
-        <Link to="/create" className="btn-primary">
-          New task
-        </Link>
+        <div className="flex items-center gap-3">
+          {hasShared && <ScopeTabs value={scope} onChange={setScope} />}
+          <Link to="/create" className="btn-primary">
+            New task
+          </Link>
+        </div>
       </div>
 
       {/* Filters */}
@@ -165,6 +174,7 @@ export default function ViewTasks() {
                         key={t.id}
                         task={t}
                         canWrite={canWrite}
+                        showCreator={scope === 'shared'}
                         onToggle={(task) =>
                           complete.mutate({ id: task.id, completed: task.status !== 'completed' })
                         }
@@ -190,6 +200,7 @@ export default function ViewTasks() {
                       key={t.id}
                       task={t}
                       canWrite={canWrite}
+                      showCreator={scope === 'shared'}
                       onToggle={(task) => complete.mutate({ id: task.id, completed: false })}
                       onEdit={setEditing}
                       onDelete={setDeleting}
