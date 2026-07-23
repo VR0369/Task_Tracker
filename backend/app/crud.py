@@ -132,6 +132,44 @@ def role_in_calendar(calendar: dict, user_id: str) -> Optional[str]:
     return None
 
 
+def split_owned_calendars(cals: List[dict], user_id: str) -> tuple[List[str], List[str]]:
+    """Split a user's calendars into ones they own vs. ones they joined via invite."""
+    owned = [c["id"] for c in cals if c["owner_id"] == user_id]
+    other = [c["id"] for c in cals if c["owner_id"] != user_id]
+    return owned, other
+
+
+def scope_filter(
+    cals: List[dict], user_id: str, scope: Optional[str], creator_field: str = "created_by"
+) -> dict:
+    """Mongo filter bucketing a user's visible documents into personal vs. shared.
+
+    Personal = the user's own calendar(s), authored by the user themself.
+    Shared = everything else the user can see: calendars they were invited into
+    (any author), plus anything in their own calendar authored by someone else.
+    """
+    owned_ids, other_ids = split_owned_calendars(cals, user_id)
+    if scope == "personal":
+        return {"calendar_id": {"$in": owned_ids}, creator_field: user_id}
+    if scope == "shared":
+        return {
+            "$or": [
+                {"calendar_id": {"$in": other_ids}},
+                {"calendar_id": {"$in": owned_ids}, creator_field: {"$ne": user_id}},
+            ]
+        }
+    return {"calendar_id": {"$in": owned_ids + other_ids}}
+
+
+def creator_map(cals: List[dict]) -> Dict[str, Dict[str, str]]:
+    """user_id -> {name, email} for everyone visible across a user's calendars."""
+    m: Dict[str, Dict[str, str]] = {}
+    for c in cals:
+        for mem in c.get("members", []):
+            m[mem["user_id"]] = {"name": mem["name"], "email": mem["email"]}
+    return m
+
+
 async def add_member(cal_id: str, user: dict, role: Role, invited_by: Optional[str] = None) -> None:
     member = {
         "user_id": user["id"],

@@ -4,9 +4,9 @@ import { api } from './client'
 
 /* ----------------------------- Query keys ----------------------------- */
 export const keys = {
-  dashboard: ['dashboard'],
+  dashboard: (scope) => ['dashboard', scope || 'personal'],
   tasks: (params) => ['tasks', params || {}],
-  activity: ['activity'],
+  activity: (scope) => ['activity', scope || 'personal'],
   calendars: ['calendars'],
   invites: ['invites'],
   weather: (key) => ['weather', key || 'default'],
@@ -17,15 +17,15 @@ export const keys = {
 
 const invalidateBoard = (qc) => {
   qc.invalidateQueries({ queryKey: ['tasks'] })
-  qc.invalidateQueries({ queryKey: keys.dashboard })
-  qc.invalidateQueries({ queryKey: keys.activity })
+  qc.invalidateQueries({ queryKey: ['dashboard'] })
+  qc.invalidateQueries({ queryKey: ['activity'] })
 }
 
 /* ----------------------------- Dashboard ------------------------------ */
-export function useDashboard() {
+export function useDashboard(scope = 'personal') {
   return useQuery({
-    queryKey: keys.dashboard,
-    queryFn: async () => (await api.get('/dashboard')).data,
+    queryKey: keys.dashboard(scope),
+    queryFn: async () => (await api.get('/dashboard', { params: { scope } })).data,
     staleTime: 15_000,
   })
 }
@@ -104,10 +104,10 @@ export function useDeleteTask() {
 }
 
 /* ------------------------------ Activity ------------------------------ */
-export function useActivity(limit = 15) {
+export function useActivity(limit = 15, scope) {
   return useQuery({
-    queryKey: keys.activity,
-    queryFn: async () => (await api.get('/activity', { params: { limit } })).data,
+    queryKey: [...keys.activity(scope), limit],
+    queryFn: async () => (await api.get('/activity', { params: { limit, scope } })).data,
     staleTime: 15_000,
   })
 }

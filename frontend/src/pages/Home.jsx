@@ -1,34 +1,43 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Clock, Activity as ActivityIcon, CalendarClock, ArrowRight } from 'lucide-react'
+import { Clock, Activity as ActivityIcon, CalendarClock, ArrowRight, UserRound } from 'lucide-react'
 import QuoteBanner from '../components/QuoteBanner.jsx'
 import WeatherWidget from '../components/WeatherWidget.jsx'
 import OnThisDay from '../components/OnThisDay.jsx'
 import DashboardCards from '../components/DashboardCards.jsx'
+import ScopeTabs from '../components/ScopeTabs.jsx'
 import Analytics from '../components/Analytics.jsx'
 import SeverityBadge from '../components/SeverityBadge.jsx'
 import EmptyState from '../components/EmptyState.jsx'
 import { SkeletonList } from '../components/Skeletons.jsx'
 import { useAuth } from '../auth/AuthContext.jsx'
-import { useDashboard, useTasks, useActivity, useCompleteTask } from '../api/hooks'
+import { useDashboard, useTasks, useActivity, useCompleteTask, useCalendars } from '../api/hooks'
 import { bucketOf, fmtTime, fromNow } from '../utils/format'
 
 export default function Home() {
   const { user } = useAuth()
-  const { data: dash, isLoading: dashLoading } = useDashboard()
-  const { data: tasks, isLoading: tasksLoading } = useTasks({ status: 'pending', sort: 'due_at' })
-  const { data: activity, isLoading: actLoading } = useActivity(8)
+  const [scope, setScope] = useState('personal')
+  const { data: calendars } = useCalendars()
+  const hasShared = (calendars || []).some((c) => c.owner_id !== user?.id)
+
+  const { data: dash, isLoading: dashLoading } = useDashboard(scope)
+  const { data: tasks, isLoading: tasksLoading } = useTasks({ status: 'pending', sort: 'due_at', scope })
+  const { data: activity, isLoading: actLoading } = useActivity(8, scope)
   const complete = useCompleteTask()
 
   const todays = (tasks?.items || []).filter((t) => bucketOf(t) === 'today')
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-display text-2xl font-bold md:text-3xl">
-          Hi, {user?.name?.split(' ')[0] || 'there'} 👋
-        </h1>
-        <p className="text-sm text-slate-500">Here's your day at a glance.</p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="font-display text-2xl font-bold md:text-3xl">
+            Hi, {user?.name?.split(' ')[0] || 'there'} 👋
+          </h1>
+          <p className="text-sm text-slate-500">Here's your day at a glance.</p>
+        </div>
+        {hasShared && <ScopeTabs value={scope} onChange={setScope} />}
       </div>
 
       <QuoteBanner />
@@ -77,7 +86,14 @@ export default function Home() {
                 />
                 <div className="min-w-0 flex-1">
                   <div className="truncate font-medium">{t.name}</div>
-                  <div className="text-xs text-slate-500">{fmtTime(t.due_at)}</div>
+                  <div className="flex items-center gap-2 text-xs text-slate-500">
+                    <span>{fmtTime(t.due_at)}</span>
+                    {scope === 'shared' && t.created_by_name && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-slate-500/10 px-2 py-0.5 text-slate-600 dark:text-slate-300">
+                        <UserRound size={11} /> {t.created_by_name}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <SeverityBadge severity={t.severity} />
               </motion.li>

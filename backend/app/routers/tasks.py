@@ -30,11 +30,6 @@ def _serialize(t: dict) -> TaskOut:
     return TaskOut(**crud.doc(t) if "_id" in t else t)
 
 
-async def _member_calendar_ids(user: dict) -> List[str]:
-    cals = await crud.list_user_calendars(user["id"])
-    return [c["id"] for c in cals]
-
-
 async def _require_write(user: dict, calendar_id: str, minimum: Role = Role.contributor) -> dict:
     calendar = await crud.get_calendar(calendar_id)
     if calendar is None:
@@ -54,6 +49,7 @@ async def _require_write(user: dict, calendar_id: str, minimum: Role = Role.cont
 async def list_tasks(
     user: dict = Depends(get_current_user),
     calendar_id: Optional[str] = None,
+    scope: Optional[str] = Query(default=None, pattern="^(personal|shared|all)$"),
     search: Optional[str] = Query(default=None, description="Match on task name"),
     severity: Optional[Severity] = None,
     task_status: Optional[TaskStatus] = Query(default=None, alias="status"),
@@ -64,8 +60,13 @@ async def list_tasks(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=200),
 ):
-    cal_ids = [calendar_id] if calendar_id else await _member_calendar_ids(user)
-    query: dict = {"calendar_id": {"$in": cal_ids}}
+    cals = await crud.list_user_calendars(user["id"])
+    if calendar_id:
+        query: dict = {"calendar_id": {"$in": [calendar_id]}}
+    elif scope:
+        query = crud.scope_filter(cals, user["id"], scope)
+    else:
+        query = {"calendar_id": {"$in": [c["id"] for c in cals]}}
     if search:
         query["name"] = {"$regex": search, "$options": "i"}
     if severity:
@@ -98,6 +99,12 @@ async def list_tasks(
 
     start = (page - 1) * page_size
     page_items = items[start : start + page_size]
+    cmap = crud.creator_map(cals)
+    for t in page_items:
+        creator = cmap.get(t["created_by"])
+        if creator:
+            t["created_by_name"] = creator["name"]
+            t["created_by_email"] = creator["email"]
     return {
         "items": [TaskOut(**t).model_dump(mode="json") for t in page_items],
         "total": total,

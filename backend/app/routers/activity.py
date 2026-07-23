@@ -18,13 +18,15 @@ router = APIRouter(prefix="/activity", tags=["activity"])
 async def list_activity(
     user: dict = Depends(get_current_user),
     calendar_id: Optional[str] = None,
+    scope: Optional[str] = Query(default=None, pattern="^(personal|shared|all)$"),
     limit: int = Query(default=25, ge=1, le=200),
 ):
     if calendar_id:
-        cal_ids = [calendar_id]
+        query: dict = {"calendar_id": {"$in": [calendar_id]}}
     else:
-        cal_ids = [c["id"] for c in await crud.list_user_calendars(user["id"])]
-    cursor = dbm.col(dbm.ACTIVITY_LOGS).find({"calendar_id": {"$in": cal_ids}})
+        cals = await crud.list_user_calendars(user["id"])
+        query = crud.scope_filter(cals, user["id"], scope, creator_field="actor_id")
+    cursor = dbm.col(dbm.ACTIVITY_LOGS).find(query)
     items = [crud.doc(a) async for a in cursor]
     items.sort(key=lambda a: a["created_at"], reverse=True)
     return [ActivityLogOut(**a) for a in items[:limit]]

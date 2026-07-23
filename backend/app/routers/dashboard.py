@@ -10,7 +10,7 @@ try:
 except ImportError:  # pragma: no cover
     ZoneInfo = None  # type: ignore
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 
 from .. import crud
 from .. import database as dbm
@@ -38,10 +38,13 @@ def _bump(card: Dict[str, int], severity: str) -> None:
 
 
 @router.get("", response_model=DashboardResponse)
-async def get_dashboard(user: dict = Depends(get_current_user)):
+async def get_dashboard(
+    user: dict = Depends(get_current_user),
+    scope: str = Query(default="personal", pattern="^(personal|shared|all)$"),
+):
     tz = _tz(user)
     cals = await crud.list_user_calendars(user["id"])
-    cal_ids = [c["id"] for c in cals]
+    query = crud.scope_filter(cals, user["id"], scope)
 
     now = crud.now()
     today = now.astimezone(tz).date() if tz else now.date()
@@ -51,7 +54,7 @@ async def get_dashboard(user: dict = Depends(get_current_user)):
     empty = lambda: {"total": 0, "critical": 0, "high": 0, "low": 0}
     past_due, due_today, upcoming, completed_yesterday = empty(), empty(), empty(), empty()
 
-    cursor = dbm.col(dbm.TASKS).find({"calendar_id": {"$in": cal_ids}})
+    cursor = dbm.col(dbm.TASKS).find(query)
     async for t in cursor:
         sev = t.get("severity", "low")
         status = t.get("status")

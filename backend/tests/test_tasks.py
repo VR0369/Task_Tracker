@@ -111,3 +111,60 @@ async def test_filters_and_sort(client, auth_headers):
     items = resp.json()["items"]
     assert all(i["severity"] == "high" for i in items)
     assert any(i["name"] == "Beta" for i in items)
+
+
+@pytest.mark.asyncio
+async def test_personal_vs_shared_scope(client):
+    # Parent (admin) creates a task on their own calendar, then invites a child.
+    parent = (await client.post("/api/v1/auth/dev-login", json={"email": "parent@example.com"})).json()
+    parent_h = {"Authorization": f"Bearer {parent['access_token']}"}
+    parent_cal = parent["user"]["default_calendar_id"]
+
+    await client.post(
+        "/api/v1/tasks",
+        headers=parent_h,
+        json={"name": "Parent's task", "due_at": _iso(1), "calendar_id": parent_cal},
+    )
+
+    inv = await client.post(
+        "/api/v1/invites",
+        headers=parent_h,
+        json={"email": "child@example.com", "role": "contributor", "calendar_id": parent_cal},
+    )
+    token = inv.json()["invitation"]["token"]
+
+    child = (await client.post("/api/v1/auth/dev-login", json={"email": "child@example.com"})).json()
+    child_h = {"Authorization": f"Bearer {child['access_token']}"}
+    accept = await client.post("/api/v1/invites/accept", headers=child_h, json={"token": token})
+    assert accept.json()["status"] == "approved"
+
+    # Child creates their own task on their own (personal) calendar.
+    child_cal = child["user"]["default_calendar_id"]
+    await client.post(
+        "/api/v1/tasks",
+        headers=child_h,
+        json={"name": "Child's own task", "due_at": _iso(1), "calendar_id": child_cal},
+    )
+
+    # Personal: only the child's own task.
+    personal = await client.get(
+        "/api/v1/tasks", headers=child_h, params={"scope": "personal"}
+    )
+    personal_names = {t["name"] for t in personal.json()["items"]}
+    assert personal_names == {"Child's own task"}
+
+    # Shared: only the parent's task, with creator name attached.
+    shared = await client.get("/api/v1/tasks", headers=child_h, params={"scope": "shared"})
+    shared_items = shared.json()["items"]
+    shared_names = {t["name"] for t in shared_items}
+    assert shared_names == {"Parent's task"}
+    assert shared_items[0]["created_by_name"]
+
+    # Dashboard mirrors the same split via the past/upcoming buckets total count.
+    dash_personal = await client.get(
+        "/api/v1/dashboard", headers=child_h, params={"scope": "personal"}
+    )
+    dash_shared = await client.get(
+        "/api/v1/dashboard", headers=child_h, params={"scope": "shared"}
+    )
+    assert dash_personal.status_code == 200 and dash_shared.status_code == 200

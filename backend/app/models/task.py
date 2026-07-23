@@ -67,6 +67,8 @@ class TaskOut(BaseModel):
     due_at: datetime
     notes: str = ""
     created_by: str
+    created_by_name: Optional[str] = None
+    created_by_email: Optional[str] = None
     created_at: datetime
     updated_at: datetime
     completed_at: Optional[datetime] = None
