@@ -24,6 +24,10 @@ class CalendarOut(BaseModel):
     created_at: Optional[datetime] = None
 
 
+class MemberRoleUpdate(BaseModel):
+    role: Role
+
+
 class InvitationCreate(BaseModel):
     email: EmailStr
     role: Role = Role.contributor

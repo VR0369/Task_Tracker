@@ -1,10 +1,17 @@
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import toast from 'react-hot-toast'
-import { UserPlus, Copy, Check, Shield, Users, Mail } from 'lucide-react'
+import { UserPlus, Copy, Check, Shield, Users, Mail, Trash2 } from 'lucide-react'
 import { SkeletonList } from '../components/Skeletons.jsx'
 import Modal from '../components/Modal.jsx'
-import { useInvites, useCreateInvite, useInviteAction, useCalendars } from '../api/hooks'
+import {
+  useInvites,
+  useCreateInvite,
+  useInviteAction,
+  useCalendars,
+  useUpdateMemberRole,
+  useRemoveMember,
+} from '../api/hooks'
 import { fromNow } from '../utils/format'
 
 const STATUS_STYLE = {
@@ -22,8 +29,11 @@ export default function InvitePage() {
   const { data: calendars } = useCalendars()
   const createInvite = useCreateInvite()
   const action = useInviteAction()
+  const updateRole = useUpdateMemberRole()
+  const removeMember = useRemoveMember()
   const [copied, setCopied] = useState(null)
   const [created, setCreated] = useState(null) // { link, email, email_sent }
+  const [removing, setRemoving] = useState(null) // member pending removal confirmation
 
   const adminCal = (calendars || []).find((c) => c.my_role === 'admin')
   const isAdmin = !!adminCal
@@ -98,29 +108,60 @@ export default function InvitePage() {
             <Users size={18} /> Members
           </h2>
           <div className="glass-card divide-y divide-white/40 dark:divide-white/10">
-            {adminCal.members.map((m) => (
-              <div key={m.user_id} className="flex items-center gap-3 p-3">
-                <img
-                  src={`https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(m.name)}`}
-                  alt=""
-                  className="h-8 w-8 rounded-full"
-                />
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-semibold">{m.name}</div>
-                  <div className="truncate text-xs text-slate-500">{m.email}</div>
-                  <div className="truncate text-[11px] text-slate-400">
-                    {m.user_id === adminCal.owner_id
-                      ? 'Owner'
-                      : m.invited_by
-                      ? `Invited by ${memberName[m.invited_by] || 'admin'}${
-                          m.joined_at ? ` · joined ${fromNow(m.joined_at)}` : ''
-                        }`
-                      : 'Member'}
+            {adminCal.members.map((m) => {
+              const isOwner = m.user_id === adminCal.owner_id
+              return (
+                <div key={m.user_id} className="flex items-center gap-3 p-3">
+                  <img
+                    src={`https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(m.name)}`}
+                    alt=""
+                    className="h-8 w-8 rounded-full"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-semibold">{m.name}</div>
+                    <div className="truncate text-xs text-slate-500">{m.email}</div>
+                    <div className="truncate text-[11px] text-slate-400">
+                      {isOwner
+                        ? 'Owner'
+                        : m.invited_by
+                        ? `Invited by ${memberName[m.invited_by] || 'admin'}${
+                            m.joined_at ? ` · joined ${fromNow(m.joined_at)}` : ''
+                          }`
+                        : 'Member'}
+                    </div>
                   </div>
+                  {isOwner ? (
+                    <span className="chip bg-brand-500/15 capitalize text-brand-600">{m.role}</span>
+                  ) : (
+                    <>
+                      <select
+                        className="input w-auto !min-h-0 py-1.5 pl-2.5 pr-7 text-xs capitalize"
+                        value={m.role}
+                        disabled={updateRole.isPending}
+                        onChange={(e) =>
+                          updateRole.mutate({
+                            memberId: m.user_id,
+                            role: e.target.value,
+                            calendarId: adminCal.id,
+                          })
+                        }
+                      >
+                        <option value="admin">Admin</option>
+                        <option value="contributor">Contributor</option>
+                        <option value="viewer">Viewer</option>
+                      </select>
+                      <button
+                        onClick={() => setRemoving(m)}
+                        aria-label="Remove member"
+                        className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-slate-500 hover:bg-red-500/10 hover:text-red-600"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </>
+                  )}
                 </div>
-                <span className="chip bg-brand-500/15 capitalize text-brand-600">{m.role}</span>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       )}
@@ -231,6 +272,35 @@ export default function InvitePage() {
               </button>
             </div>
           </div>
+        )}
+      </Modal>
+
+      {/* Remove member confirm */}
+      <Modal open={!!removing} onClose={() => setRemoving(null)} title="Remove member?">
+        {removing && (
+          <>
+            <p className="text-sm text-slate-600 dark:text-slate-300">
+              Are you sure you want to remove <span className="font-semibold">{removing.name}</span> from
+              this calendar? They'll lose access immediately. This can't be undone.
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button className="btn-ghost" onClick={() => setRemoving(null)}>
+                Cancel
+              </button>
+              <button
+                className="btn bg-red-500 text-white hover:bg-red-600"
+                onClick={() =>
+                  removeMember.mutate(
+                    { memberId: removing.user_id, calendarId: adminCal.id },
+                    { onSuccess: () => setRemoving(null) }
+                  )
+                }
+                disabled={removeMember.isPending}
+              >
+                Remove
+              </button>
+            </div>
+          </>
         )}
       </Modal>
     </div>

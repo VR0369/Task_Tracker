@@ -153,6 +153,32 @@ export function useInviteAction() {
   })
 }
 
+export function useUpdateMemberRole() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ memberId, role, calendarId }) =>
+      (await api.patch(`/invites/members/${memberId}`, { role }, { params: { calendar_id: calendarId } })).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: keys.calendars })
+      toast.success('Member role updated')
+    },
+    onError: (e) => toast.error(e?.response?.data?.detail || 'Could not update role'),
+  })
+}
+
+export function useRemoveMember() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ memberId, calendarId }) =>
+      (await api.delete(`/invites/members/${memberId}`, { params: { calendar_id: calendarId } })).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: keys.calendars })
+      toast.success('Member removed')
+    },
+    onError: (e) => toast.error(e?.response?.data?.detail || 'Could not remove member'),
+  })
+}
+
 // Public token preview for the accept page (works logged-out).
 export function useInvitePreview(token) {
   return useQuery({

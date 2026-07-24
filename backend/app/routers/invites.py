@@ -23,7 +23,7 @@ from .. import database as dbm
 from ..config import settings
 from ..deps import get_current_user
 from ..models.enums import Role
-from ..models.misc import InvitationCreate, InvitationOut, InvitationPreview
+from ..models.misc import InvitationCreate, InvitationOut, InvitationPreview, MemberRoleUpdate
 from ..services import mailer
 
 router = APIRouter(prefix="/invites", tags=["invites"])
@@ -223,6 +223,26 @@ async def revoke_invite(invite_id: str, user: dict = Depends(get_current_user)):
     )
     inv = await dbm.col(dbm.INVITATIONS).find_one({"_id": invite_id})
     return _out(crud.doc(inv))
+
+
+@router.patch("/members/{member_id}", response_model=dict)
+async def update_member_role(
+    member_id: str,
+    body: MemberRoleUpdate,
+    user: dict = Depends(get_current_user),
+    calendar_id: Optional[str] = None,
+):
+    cid = calendar_id or user.get("default_calendar_id")
+    cal = await _require_admin(user, cid)
+    if member_id == cal["owner_id"]:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Cannot change the calendar owner's role")
+    if crud.role_in_calendar(cal, member_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Member not found")
+    await crud.update_member_role(cid, member_id, body.role)
+    await crud.log_activity(
+        cid, user, "role_changed", "user", f"Changed a member's role to {body.role.value}", member_id,
+    )
+    return {"member_id": member_id, "role": body.role.value}
 
 
 @router.delete("/members/{member_id}", status_code=status.HTTP_204_NO_CONTENT)

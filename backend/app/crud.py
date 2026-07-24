@@ -186,6 +186,13 @@ async def remove_member(cal_id: str, user_id: str) -> None:
     )
 
 
+async def update_member_role(cal_id: str, user_id: str, role: Role) -> None:
+    await dbm.col(dbm.CALENDARS).update_one(
+        {"_id": cal_id, "members.user_id": user_id},
+        {"$set": {"members.$.role": role.value}},
+    )
+
+
 # --------------------------------------------------------------------------- #
 # activity log
 # --------------------------------------------------------------------------- #

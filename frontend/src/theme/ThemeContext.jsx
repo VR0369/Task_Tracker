@@ -87,6 +87,7 @@ function apply(theme, accent) {
     theme === 'dark' ||
     (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
   root.classList.toggle('dark', dark)
+  root.style.colorScheme = dark ? 'dark' : 'light'
   if (accent) applyAccent(accent)
 }
 

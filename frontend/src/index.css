@@ -36,6 +36,14 @@ body {
   @apply bg-[#0b1020] text-slate-100;
 }
 
+/* Native <select> popups ignore Tailwind's alpha/dark: utilities on <option>;
+   color-scheme (set in ThemeContext) handles most browsers, but pin explicit
+   solid colors here as a fallback, matching the dark body + text-slate-100 tokens. */
+.dark select option {
+  background-color: #0b1020;
+  color: #f1f5f9;
+}
+
 /* App background: soft animated gradient blobs */
 .app-bg {
   position: fixed;
