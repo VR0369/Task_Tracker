@@ -139,25 +139,17 @@ def split_owned_calendars(cals: List[dict], user_id: str) -> tuple[List[str], Li
     return owned, other
 
 
-def scope_filter(
-    cals: List[dict], user_id: str, scope: Optional[str], creator_field: str = "created_by"
-) -> dict:
+def scope_filter(cals: List[dict], user_id: str, scope: Optional[str]) -> dict:
     """Mongo filter bucketing a user's visible documents into personal vs. shared.
 
-    Personal = the user's own calendar(s), authored by the user themself.
-    Shared = everything else the user can see: calendars they were invited into
-    (any author), plus anything in their own calendar authored by someone else.
+    Personal = calendars the user owns (any author).
+    Shared = calendars the user was invited into by someone else (any author).
     """
     owned_ids, other_ids = split_owned_calendars(cals, user_id)
     if scope == "personal":
-        return {"calendar_id": {"$in": owned_ids}, creator_field: user_id}
+        return {"calendar_id": {"$in": owned_ids}}
     if scope == "shared":
-        return {
-            "$or": [
-                {"calendar_id": {"$in": other_ids}},
-                {"calendar_id": {"$in": owned_ids}, creator_field: {"$ne": user_id}},
-            ]
-        }
+        return {"calendar_id": {"$in": other_ids}}
     return {"calendar_id": {"$in": owned_ids + other_ids}}
 
 

@@ -19,9 +19,8 @@ export default function CalendarPage() {
   const [dragId, setDragId] = useState(null)
 
   const { data: calendars } = useCalendars()
-  const hasShared = (calendars || []).some(
-    (c) => c.owner_id !== user?.id || (c.members || []).length > 1
-  )
+  const hasShared = (calendars || []).some((c) => c.owner_id !== user?.id)
+  const hasCollaborators = (calendars || []).some((c) => (c.members || []).length > 1)
 
   const { data } = useTasks({ page_size: 200, scope })
   const update = useUpdateTask()
@@ -113,7 +112,7 @@ export default function CalendarPage() {
           <WeekGrid cursor={cursor} byDay={byDay} onOpen={setEditing} onDrop={onDrop} setDragId={setDragId} />
         )}
         {view === 'day' && (
-          <DayList cursor={cursor} byDay={byDay} onOpen={setEditing} showCreator={scope === 'shared'} />
+          <DayList cursor={cursor} byDay={byDay} onOpen={setEditing} showCreator={hasCollaborators} />
         )}
       </div>
 

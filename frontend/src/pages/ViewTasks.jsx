@@ -67,9 +67,8 @@ export default function ViewTasks() {
   const update = useUpdateTask()
   const del = useDeleteTask()
 
-  const hasShared = (calendars || []).some(
-    (c) => c.owner_id !== user?.id || (c.members || []).length > 1
-  )
+  const hasShared = (calendars || []).some((c) => c.owner_id !== user?.id)
+  const hasCollaborators = (calendars || []).some((c) => (c.members || []).length > 1)
   const canWrite = !calendars || calendars.some((c) => c.my_role !== 'viewer')
 
   const grouped = useMemo(() => {
@@ -176,7 +175,7 @@ export default function ViewTasks() {
                         key={t.id}
                         task={t}
                         canWrite={canWrite}
-                        showCreator={scope === 'shared'}
+                        showCreator={hasCollaborators}
                         onToggle={(task) =>
                           complete.mutate({ id: task.id, completed: task.status !== 'completed' })
                         }
@@ -202,7 +201,7 @@ export default function ViewTasks() {
                       key={t.id}
                       task={t}
                       canWrite={canWrite}
-                      showCreator={scope === 'shared'}
+                      showCreator={hasCollaborators}
                       onToggle={(task) => complete.mutate({ id: task.id, completed: false })}
                       onEdit={setEditing}
                       onDelete={setDeleting}

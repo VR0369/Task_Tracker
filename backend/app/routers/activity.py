@@ -25,7 +25,7 @@ async def list_activity(
         query: dict = {"calendar_id": {"$in": [calendar_id]}}
     else:
         cals = await crud.list_user_calendars(user["id"])
-        query = crud.scope_filter(cals, user["id"], scope, creator_field="actor_id")
+        query = crud.scope_filter(cals, user["id"], scope)
     cursor = dbm.col(dbm.ACTIVITY_LOGS).find(query)
     items = [crud.doc(a) async for a in cursor]
     items.sort(key=lambda a: a["created_at"], reverse=True)

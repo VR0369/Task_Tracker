@@ -19,9 +19,7 @@ export default function Home() {
   const { user } = useAuth()
   const { scope, setScope } = useScope()
   const { data: calendars } = useCalendars()
-  const hasShared = (calendars || []).some(
-    (c) => c.owner_id !== user?.id || (c.members || []).length > 1
-  )
+  const hasShared = (calendars || []).some((c) => c.owner_id !== user?.id)
 
   const { data: dash, isLoading: dashLoading } = useDashboard(scope)
   const { data: tasks, isLoading: tasksLoading } = useTasks({ status: 'pending', sort: 'due_at', scope })
