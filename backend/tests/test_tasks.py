@@ -168,3 +168,135 @@ async def test_personal_vs_shared_scope(client):
         "/api/v1/dashboard", headers=child_h, params={"scope": "shared"}
     )
     assert dash_personal.status_code == 200 and dash_shared.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_non_recurring_has_null_series_id(client, auth_headers):
+    resp = await client.post(
+        "/api/v1/tasks",
+        headers=auth_headers,
+        json={"name": "Plain task", "due_at": _iso(1)},
+    )
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["series_id"] is None
+
+
+@pytest.mark.asyncio
+async def test_recurring_weekly_creates_series(client, auth_headers):
+    resp = await client.post(
+        "/api/v1/tasks",
+        headers=auth_headers,
+        json={
+            "name": "Weekly sync",
+            "severity": "high",
+            "due_at": _iso(1),
+            "recurrence_frequency": "weekly",
+            "recurrence_interval": 2,
+            "recurrence_count": 5,
+        },
+    )
+    assert resp.status_code == 201, resp.text
+    created = resp.json()
+    series_id = created["series_id"]
+    assert series_id is not None
+
+    listing = await client.get(
+        "/api/v1/tasks", headers=auth_headers, params={"page_size": 200}
+    )
+    series_items = [t for t in listing.json()["items"] if t["series_id"] == series_id]
+    series_items.sort(key=lambda t: t["due_at"])
+    assert len(series_items) == 5
+    assert all(t["name"] == "Weekly sync" and t["severity"] == "high" for t in series_items)
+
+    from datetime import datetime
+
+    due_dates = [datetime.fromisoformat(t["due_at"]) for t in series_items]
+    for a, b in zip(due_dates, due_dates[1:]):
+        assert (b - a).days == 14
+
+
+@pytest.mark.asyncio
+async def test_recurring_until_and_count_mutually_exclusive(client, auth_headers):
+    resp = await client.post(
+        "/api/v1/tasks",
+        headers=auth_headers,
+        json={
+            "name": "Bad recurrence",
+            "due_at": _iso(1),
+            "recurrence_frequency": "daily",
+            "recurrence_until": _iso(10),
+            "recurrence_count": 3,
+        },
+    )
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_recurring_count_exceeds_hard_cap(client, auth_headers):
+    resp = await client.post(
+        "/api/v1/tasks",
+        headers=auth_headers,
+        json={
+            "name": "Too many",
+            "due_at": _iso(1),
+            "recurrence_frequency": "daily",
+            "recurrence_count": 500,
+        },
+    )
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_recurring_until_hard_capped(client, auth_headers):
+    resp = await client.post(
+        "/api/v1/tasks",
+        headers=auth_headers,
+        json={
+            "name": "Long daily series",
+            "due_at": _iso(1),
+            "recurrence_frequency": "daily",
+            "recurrence_interval": 1,
+            "recurrence_until": _iso(365 * 5),
+        },
+    )
+    assert resp.status_code == 201, resp.text
+    series_id = resp.json()["series_id"]
+
+    listing = await client.get(
+        "/api/v1/tasks", headers=auth_headers, params={"page_size": 200}
+    )
+    series_items = [t for t in listing.json()["items"] if t["series_id"] == series_id]
+    assert len(series_items) == 100
+
+
+@pytest.mark.asyncio
+async def test_recurring_monthly_rollover(client, auth_headers):
+    from datetime import datetime, timedelta, timezone
+
+    # Fixed future date known to have 31 days, so the clamp on shorter months
+    # (Feb, Apr) is exercised deterministically regardless of "today".
+    due = datetime(2030, 1, 31, 9, 0, 0, tzinfo=timezone.utc)
+    resp = await client.post(
+        "/api/v1/tasks",
+        headers=auth_headers,
+        json={
+            "name": "Month-end task",
+            "due_at": due.isoformat(),
+            "recurrence_frequency": "monthly",
+            "recurrence_count": 3,
+        },
+    )
+    assert resp.status_code == 201, resp.text
+    series_id = resp.json()["series_id"]
+
+    listing = await client.get(
+        "/api/v1/tasks", headers=auth_headers, params={"page_size": 200}
+    )
+    series_items = [t for t in listing.json()["items"] if t["series_id"] == series_id]
+    series_items.sort(key=lambda t: t["due_at"])
+    assert len(series_items) == 3
+
+    expected_days = [31, 28, 31]  # Jan 31 -> Feb 28 (2030 not a leap year) -> Mar 31
+    for t, expected_day in zip(series_items, expected_days):
+        d = datetime.fromisoformat(t["due_at"])
+        assert d.day == expected_day

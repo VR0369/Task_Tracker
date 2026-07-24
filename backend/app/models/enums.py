@@ -18,6 +18,12 @@ class TaskStatus(str, Enum):
     completed = "completed"
 
 
+class RecurrenceFrequency(str, Enum):
+    daily = "daily"
+    weekly = "weekly"
+    monthly = "monthly"
+
+
 class DashboardBucket(str, Enum):
     past_due = "past_due"
     due_today = "due_today"

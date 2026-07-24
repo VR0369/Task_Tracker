@@ -1,10 +1,11 @@
 import { useForm } from 'react-hook-form'
 import { motion } from 'framer-motion'
-import { List, Save, RotateCcw, X } from 'lucide-react'
+import { List, Repeat, Save, RotateCcw, X } from 'lucide-react'
 import { SEVERITY } from '../utils/format'
 import { dayjs } from '../utils/format'
 
 const SEV_KEYS = ['critical', 'high', 'low']
+const REPEAT_UNIT = { daily: 'day', weekly: 'week', monthly: 'month' }
 
 function toDateTimeParts(iso) {
   const d = iso ? dayjs(iso) : dayjs()
@@ -27,7 +28,18 @@ export default function TaskForm({ task, onSubmit, onCancel, submitting }) {
         ...toDateTimeParts(task.due_at),
         ...toStartParts(task.start_at),
       }
-    : { name: '', severity: 'low', notes: '', ...toDateTimeParts(null), ...toStartParts(null) }
+    : {
+        name: '',
+        severity: 'low',
+        notes: '',
+        ...toDateTimeParts(null),
+        ...toStartParts(null),
+        repeat: 'none',
+        repeat_interval: 1,
+        repeat_end_type: 'until',
+        repeat_until: '',
+        repeat_count: 5,
+      }
 
   const {
     register,
@@ -41,13 +53,25 @@ export default function TaskForm({ task, onSubmit, onCancel, submitting }) {
   const severity = watch('severity')
   const notes = watch('notes')
   const startDate = watch('start_date')
+  const repeat = watch('repeat')
+  const repeatEndType = watch('repeat_end_type')
 
   const submit = (v) => {
     const due_at = dayjs(`${v.date} ${v.time}`).toISOString()
     const start_at = v.start_date
       ? dayjs(`${v.start_date} ${v.start_time || '09:00'}`).toISOString()
       : null
-    onSubmit({ name: v.name.trim(), severity: v.severity, notes: v.notes, start_at, due_at })
+    const payload = { name: v.name.trim(), severity: v.severity, notes: v.notes, start_at, due_at }
+    if (!task && v.repeat !== 'none') {
+      payload.recurrence_frequency = v.repeat
+      payload.recurrence_interval = Number(v.repeat_interval) || 1
+      if (v.repeat_end_type === 'until') {
+        payload.recurrence_until = dayjs(v.repeat_until).endOf('day').toISOString()
+      } else {
+        payload.recurrence_count = Number(v.repeat_count) || 1
+      }
+    }
+    onSubmit(payload)
   }
 
   const addBullet = () => {
@@ -167,6 +191,65 @@ export default function TaskForm({ task, onSubmit, onCancel, submitting }) {
           />
         </div>
       </div>
+
+      {!task && (
+        <div className="space-y-3 rounded-xl border border-slate-200 p-4 dark:border-white/10">
+          <div className="flex items-center gap-2">
+            <Repeat size={16} className="text-slate-400" />
+            <span className="label !mb-0">Repeat</span>
+          </div>
+          <select className="input w-auto" {...register('repeat')}>
+            <option value="none">Does not repeat</option>
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
+          </select>
+
+          {repeat !== 'none' && (
+            <>
+              <div className="flex items-center gap-2">
+                <span className="label !mb-0">Every</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={365}
+                  className="input w-20"
+                  {...register('repeat_interval', { valueAsNumber: true, min: 1, max: 365 })}
+                />
+                <span className="text-sm text-slate-500 dark:text-slate-400">
+                  {REPEAT_UNIT[repeat]}(s)
+                </span>
+              </div>
+
+              <div className="flex flex-wrap gap-4">
+                <label className="flex items-center gap-1.5 text-sm">
+                  <input type="radio" value="until" {...register('repeat_end_type')} /> Until date
+                </label>
+                <label className="flex items-center gap-1.5 text-sm">
+                  <input type="radio" value="count" {...register('repeat_end_type')} /> Number of
+                  times
+                </label>
+              </div>
+
+              {repeatEndType === 'until' ? (
+                <input
+                  type="date"
+                  className="input"
+                  {...register('repeat_until', { required: repeatEndType === 'until' })}
+                />
+              ) : (
+                <input
+                  type="number"
+                  min={1}
+                  max={100}
+                  className="input w-24"
+                  {...register('repeat_count', { valueAsNumber: true, min: 1, max: 100 })}
+                />
+              )}
+            </>
+          )}
+        </div>
+      )}
 
       <div>
         <div className="mb-1.5 flex items-center justify-between">

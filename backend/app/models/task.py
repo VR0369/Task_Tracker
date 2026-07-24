@@ -3,7 +3,8 @@ from typing import Optional
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from .enums import Severity, TaskStatus
+from .enums import RecurrenceFrequency, Severity, TaskStatus
+from ..services.recurrence import HARD_CAP
 
 
 def _as_utc(d: Optional[datetime]) -> Optional[datetime]:
@@ -23,6 +24,12 @@ class TaskCreate(BaseModel):
     notes: str = ""
     calendar_id: Optional[str] = None  # defaults to caller's default calendar
 
+    # --- Recurrence (create-only; each generated occurrence is independent afterward) ---
+    recurrence_frequency: Optional[RecurrenceFrequency] = None
+    recurrence_interval: int = Field(default=1, ge=1, le=365)
+    recurrence_until: Optional[datetime] = None
+    recurrence_count: Optional[int] = None
+
     @field_validator("name")
     @classmethod
     def _strip(cls, v: str) -> str:
@@ -35,6 +42,20 @@ class TaskCreate(BaseModel):
     def _start_before_due(self):
         if self.start_at is not None and _as_utc(self.start_at) > _as_utc(self.due_at):
             raise ValueError("Start date cannot be after the due date")
+        return self
+
+    @model_validator(mode="after")
+    def _validate_recurrence(self):
+        if self.recurrence_frequency is None:
+            return self
+        has_until = self.recurrence_until is not None
+        has_count = self.recurrence_count is not None
+        if has_until == has_count:  # neither or both provided
+            raise ValueError("Provide exactly one of recurrence_until or recurrence_count")
+        if has_until and _as_utc(self.recurrence_until) <= _as_utc(self.due_at):
+            raise ValueError("recurrence_until must be after the due date")
+        if has_count and not (1 <= self.recurrence_count <= HARD_CAP):
+            raise ValueError(f"recurrence_count must be between 1 and {HARD_CAP}")
         return self
 
 
@@ -72,3 +93,4 @@ class TaskOut(BaseModel):
     created_at: datetime
     updated_at: datetime
     completed_at: Optional[datetime] = None
+    series_id: Optional[str] = None

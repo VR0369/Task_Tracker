@@ -12,6 +12,7 @@ from .. import database as dbm
 from ..deps import get_current_user
 from ..models.enums import Role, Severity, TaskStatus
 from ..models.task import TaskCreate, TaskOut, TaskUpdate
+from ..services.recurrence import generate_occurrences
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
@@ -122,25 +123,52 @@ async def create_task(body: TaskCreate, user: dict = Depends(get_current_user)):
 
     now = crud.now()
     due = _utc(body.due_at)
-    task = {
-        "_id": crud.new_id(),
-        "calendar_id": calendar_id,
-        "name": body.name,
-        "severity": body.severity.value,
-        "status": TaskStatus.pending.value,
-        "start_at": _utc(body.start_at),
-        "due_at": due,
-        "notes": body.notes or "",
-        "created_by": user["id"],
-        "created_at": now,
-        "updated_at": now,
-        "completed_at": None,
-    }
-    await dbm.col(dbm.TASKS).insert_one(task)
-    await crud.log_activity(
-        calendar_id, user, "created", "task", f'Created task "{body.name}"', task["_id"]
-    )
-    return _serialize(task)
+    start = _utc(body.start_at)
+
+    if body.recurrence_frequency is not None:
+        pairs = generate_occurrences(
+            start,
+            due,
+            body.recurrence_frequency,
+            body.recurrence_interval,
+            until=_utc(body.recurrence_until),
+            count=body.recurrence_count,
+        )
+        series_id = crud.new_id()
+    else:
+        pairs = [(start, due)]
+        series_id = None
+
+    docs = [
+        {
+            "_id": crud.new_id(),
+            "calendar_id": calendar_id,
+            "name": body.name,
+            "severity": body.severity.value,
+            "status": TaskStatus.pending.value,
+            "start_at": occ_start,
+            "due_at": occ_due,
+            "notes": body.notes or "",
+            "created_by": user["id"],
+            "created_at": now,
+            "updated_at": now,
+            "completed_at": None,
+            "series_id": series_id,
+        }
+        for occ_start, occ_due in pairs
+    ]
+    await dbm.col(dbm.TASKS).insert_many(docs)
+
+    if series_id:
+        await crud.log_activity(
+            calendar_id, user, "created", "task",
+            f'Created recurring task "{body.name}" ({len(docs)} occurrences)', series_id,
+        )
+    else:
+        await crud.log_activity(
+            calendar_id, user, "created", "task", f'Created task "{body.name}"', docs[0]["_id"]
+        )
+    return _serialize(docs[0])
 
 
 async def _get_owned_task(task_id: str, user: dict) -> dict:
