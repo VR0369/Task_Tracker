@@ -67,7 +67,9 @@ export default function ViewTasks() {
   const update = useUpdateTask()
   const del = useDeleteTask()
 
-  const hasShared = (calendars || []).some((c) => c.owner_id !== user?.id)
+  const hasShared = (calendars || []).some(
+    (c) => c.owner_id !== user?.id || (c.members || []).length > 1
+  )
   const canWrite = !calendars || calendars.some((c) => c.my_role !== 'viewer')
 
   const grouped = useMemo(() => {

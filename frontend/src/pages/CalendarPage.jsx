@@ -19,7 +19,9 @@ export default function CalendarPage() {
   const [dragId, setDragId] = useState(null)
 
   const { data: calendars } = useCalendars()
-  const hasShared = (calendars || []).some((c) => c.owner_id !== user?.id)
+  const hasShared = (calendars || []).some(
+    (c) => c.owner_id !== user?.id || (c.members || []).length > 1
+  )
 
   const { data } = useTasks({ page_size: 200, scope })
   const update = useUpdateTask()
