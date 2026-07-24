@@ -27,6 +27,11 @@ export default function TaskForm({ task, onSubmit, onCancel, submitting }) {
         notes: task.notes || '',
         ...toDateTimeParts(task.due_at),
         ...toStartParts(task.start_at),
+        repeat: task.recurrence_frequency || 'none',
+        repeat_interval: task.recurrence_interval || 1,
+        repeat_end_type: task.recurrence_count ? 'count' : 'until',
+        repeat_until: task.recurrence_until ? dayjs(task.recurrence_until).format('YYYY-MM-DD') : '',
+        repeat_count: task.recurrence_count || 5,
       }
     : {
         name: '',
@@ -62,7 +67,7 @@ export default function TaskForm({ task, onSubmit, onCancel, submitting }) {
       ? dayjs(`${v.start_date} ${v.start_time || '09:00'}`).toISOString()
       : null
     const payload = { name: v.name.trim(), severity: v.severity, notes: v.notes, start_at, due_at }
-    if (!task && v.repeat !== 'none') {
+    if (v.repeat !== 'none') {
       payload.recurrence_frequency = v.repeat
       payload.recurrence_interval = Number(v.repeat_interval) || 1
       if (v.repeat_end_type === 'until') {
@@ -70,6 +75,8 @@ export default function TaskForm({ task, onSubmit, onCancel, submitting }) {
       } else {
         payload.recurrence_count = Number(v.repeat_count) || 1
       }
+    } else {
+      payload.recurrence_frequency = null
     }
     onSubmit(payload)
   }
@@ -192,64 +199,68 @@ export default function TaskForm({ task, onSubmit, onCancel, submitting }) {
         </div>
       </div>
 
-      {!task && (
-        <div className="space-y-3 rounded-xl border border-slate-200 p-4 dark:border-white/10">
-          <div className="flex items-center gap-2">
-            <Repeat size={16} className="text-slate-400" />
-            <span className="label !mb-0">Repeat</span>
-          </div>
-          <select className="input w-auto" {...register('repeat')}>
-            <option value="none">Does not repeat</option>
-            <option value="daily">Daily</option>
-            <option value="weekly">Weekly</option>
-            <option value="monthly">Monthly</option>
-          </select>
-
-          {repeat !== 'none' && (
-            <>
-              <div className="flex items-center gap-2">
-                <span className="label !mb-0">Every</span>
-                <input
-                  type="number"
-                  min={1}
-                  max={365}
-                  className="input w-20"
-                  {...register('repeat_interval', { valueAsNumber: true, min: 1, max: 365 })}
-                />
-                <span className="text-sm text-slate-500 dark:text-slate-400">
-                  {REPEAT_UNIT[repeat]}(s)
-                </span>
-              </div>
-
-              <div className="flex flex-wrap gap-4">
-                <label className="flex items-center gap-1.5 text-sm">
-                  <input type="radio" value="until" {...register('repeat_end_type')} /> Until date
-                </label>
-                <label className="flex items-center gap-1.5 text-sm">
-                  <input type="radio" value="count" {...register('repeat_end_type')} /> Number of
-                  times
-                </label>
-              </div>
-
-              {repeatEndType === 'until' ? (
-                <input
-                  type="date"
-                  className="input"
-                  {...register('repeat_until', { required: repeatEndType === 'until' })}
-                />
-              ) : (
-                <input
-                  type="number"
-                  min={1}
-                  max={100}
-                  className="input w-24"
-                  {...register('repeat_count', { valueAsNumber: true, min: 1, max: 100 })}
-                />
-              )}
-            </>
-          )}
+      <div className="space-y-3 rounded-xl border border-slate-200 p-4 dark:border-white/10">
+        <div className="flex items-center gap-2">
+          <Repeat size={16} className="text-slate-400" />
+          <span className="label !mb-0">Repeat</span>
         </div>
-      )}
+        {task?.series_id && (
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            This task is part of a recurring series. Changing these settings updates this and all
+            later occurrences.
+          </p>
+        )}
+        <select className="input w-auto" {...register('repeat')}>
+          <option value="none">Does not repeat</option>
+          <option value="daily">Daily</option>
+          <option value="weekly">Weekly</option>
+          <option value="monthly">Monthly</option>
+        </select>
+
+        {repeat !== 'none' && (
+          <>
+            <div className="flex items-center gap-2">
+              <span className="label !mb-0">Every</span>
+              <input
+                type="number"
+                min={1}
+                max={365}
+                className="input w-20"
+                {...register('repeat_interval', { valueAsNumber: true, min: 1, max: 365 })}
+              />
+              <span className="text-sm text-slate-500 dark:text-slate-400">
+                {REPEAT_UNIT[repeat]}(s)
+              </span>
+            </div>
+
+            <div className="flex flex-wrap gap-4">
+              <label className="flex items-center gap-1.5 text-sm">
+                <input type="radio" value="until" {...register('repeat_end_type')} /> Until date
+              </label>
+              <label className="flex items-center gap-1.5 text-sm">
+                <input type="radio" value="count" {...register('repeat_end_type')} /> Number of
+                times
+              </label>
+            </div>
+
+            {repeatEndType === 'until' ? (
+              <input
+                type="date"
+                className="input"
+                {...register('repeat_until', { required: repeatEndType === 'until' })}
+              />
+            ) : (
+              <input
+                type="number"
+                min={1}
+                max={100}
+                className="input w-24"
+                {...register('repeat_count', { valueAsNumber: true, min: 1, max: 100 })}
+              />
+            )}
+          </>
+        )}
+      </div>
 
       <div>
         <div className="mb-1.5 flex items-center justify-between">

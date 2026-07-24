@@ -300,3 +300,136 @@ async def test_recurring_monthly_rollover(client, auth_headers):
     for t, expected_day in zip(series_items, expected_days):
         d = datetime.fromisoformat(t["due_at"])
         assert d.day == expected_day
+
+
+@pytest.mark.asyncio
+async def test_edit_turns_standalone_task_into_series(client, auth_headers):
+    created = await client.post(
+        "/api/v1/tasks",
+        headers=auth_headers,
+        json={"name": "Standalone", "due_at": _iso(1)},
+    )
+    task_id = created.json()["id"]
+    assert created.json()["series_id"] is None
+
+    updated = await client.patch(
+        f"/api/v1/tasks/{task_id}",
+        headers=auth_headers,
+        json={
+            "recurrence_frequency": "weekly",
+            "recurrence_interval": 1,
+            "recurrence_count": 3,
+        },
+    )
+    assert updated.status_code == 200, updated.text
+    body = updated.json()
+    series_id = body["series_id"]
+    assert series_id is not None
+    assert body["recurrence_frequency"] == "weekly"
+
+    listing = await client.get("/api/v1/tasks", headers=auth_headers, params={"page_size": 200})
+    series_items = [t for t in listing.json()["items"] if t["series_id"] == series_id]
+    assert len(series_items) == 3
+
+
+@pytest.mark.asyncio
+async def test_edit_series_task_regenerates_future_only(client, auth_headers):
+    created = await client.post(
+        "/api/v1/tasks",
+        headers=auth_headers,
+        json={
+            "name": "Daily standup",
+            "due_at": _iso(1),
+            "recurrence_frequency": "daily",
+            "recurrence_count": 5,
+        },
+    )
+    series_id = created.json()["series_id"]
+
+    listing = await client.get("/api/v1/tasks", headers=auth_headers, params={"page_size": 200})
+    series_items = sorted(
+        [t for t in listing.json()["items"] if t["series_id"] == series_id],
+        key=lambda t: t["due_at"],
+    )
+    assert len(series_items) == 5
+    first_id, second_id = series_items[0]["id"], series_items[1]["id"]
+
+    # Change the rule on the 2nd occurrence: it and later ones should be
+    # replaced, but the 1st occurrence (earlier) must be untouched.
+    updated = await client.patch(
+        f"/api/v1/tasks/{second_id}",
+        headers=auth_headers,
+        json={
+            "recurrence_frequency": "weekly",
+            "recurrence_interval": 1,
+            "recurrence_count": 2,
+        },
+    )
+    assert updated.status_code == 200, updated.text
+    assert updated.json()["series_id"] == series_id
+
+    still_there = await client.get(f"/api/v1/tasks/{first_id}", headers=auth_headers)
+    assert still_there.status_code == 200
+
+    listing2 = await client.get("/api/v1/tasks", headers=auth_headers, params={"page_size": 200})
+    series_items2 = [t for t in listing2.json()["items"] if t["series_id"] == series_id]
+    # 1 untouched earlier occurrence + 2 regenerated (weekly, count=2) from the 2nd
+    assert len(series_items2) == 3
+
+
+@pytest.mark.asyncio
+async def test_edit_turns_off_repeat_detaches_and_removes_future(client, auth_headers):
+    created = await client.post(
+        "/api/v1/tasks",
+        headers=auth_headers,
+        json={
+            "name": "Weekly check-in",
+            "due_at": _iso(1),
+            "recurrence_frequency": "weekly",
+            "recurrence_count": 4,
+        },
+    )
+    series_id = created.json()["series_id"]
+    task_id = created.json()["id"]
+
+    updated = await client.patch(
+        f"/api/v1/tasks/{task_id}",
+        headers=auth_headers,
+        json={"recurrence_frequency": None},
+    )
+    assert updated.status_code == 200, updated.text
+    assert updated.json()["series_id"] is None
+    assert updated.json()["recurrence_frequency"] is None
+
+    listing = await client.get("/api/v1/tasks", headers=auth_headers, params={"page_size": 200})
+    series_items = [t for t in listing.json()["items"] if t["series_id"] == series_id]
+    assert len(series_items) == 0
+
+
+@pytest.mark.asyncio
+async def test_edit_without_touching_repeat_leaves_series_untouched(client, auth_headers):
+    created = await client.post(
+        "/api/v1/tasks",
+        headers=auth_headers,
+        json={
+            "name": "Monthly review",
+            "due_at": _iso(1),
+            "recurrence_frequency": "monthly",
+            "recurrence_count": 3,
+        },
+    )
+    series_id = created.json()["series_id"]
+    task_id = created.json()["id"]
+
+    updated = await client.patch(
+        f"/api/v1/tasks/{task_id}",
+        headers=auth_headers,
+        json={"notes": "just adding a note"},
+    )
+    assert updated.status_code == 200, updated.text
+    assert updated.json()["series_id"] == series_id
+    assert updated.json()["notes"] == "just adding a note"
+
+    listing = await client.get("/api/v1/tasks", headers=auth_headers, params={"page_size": 200})
+    series_items = [t for t in listing.json()["items"] if t["series_id"] == series_id]
+    assert len(series_items) == 3
