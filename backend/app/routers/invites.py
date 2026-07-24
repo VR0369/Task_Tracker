@@ -90,7 +90,7 @@ async def create_invite(body: InvitationCreate, user: dict = Depends(get_current
         f'Invited {email} as {body.role.value}', inv["_id"],
     )
     link = f"{settings.frontend_url}/invite/accept?token={token}"
-    email_sent = await mailer.send_invite_email(
+    email_sent, email_error = await mailer.send_invite_email(
         to=email, link=link, inviter_name=user.get("name", "A teammate"),
         calendar_name=cal["name"], role=body.role.value,
     )
@@ -98,6 +98,7 @@ async def create_invite(body: InvitationCreate, user: dict = Depends(get_current
         "invitation": _out(crud.doc(inv), cal["name"]).model_dump(mode="json"),
         "link": link,
         "email_sent": email_sent,
+        "email_error": email_error,
     }
 
 

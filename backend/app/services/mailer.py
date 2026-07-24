@@ -13,6 +13,7 @@ import smtplib
 from email.message import EmailMessage
 from email.utils import formataddr
 from html import escape
+from typing import Optional
 
 from ..config import settings
 
@@ -21,6 +22,12 @@ logger = logging.getLogger("task_tracker.mailer")
 
 def emails_enabled() -> bool:
     return bool(settings.smtp_host and settings.smtp_user and settings.smtp_password)
+
+
+def _safe_reason(exc: Exception) -> str:
+    """Short, UI-safe stringification of an SMTP error (no secrets/stack traces)."""
+    msg = f"{type(exc).__name__}: {exc}".replace("\n", " ").replace("\r", " ")
+    return (msg[:157] + "...") if len(msg) > 160 else msg
 
 
 def _send_sync(to: str, subject: str, text: str, html: str) -> None:
@@ -47,23 +54,23 @@ def _send_sync(to: str, subject: str, text: str, html: str) -> None:
             s.send_message(msg)
 
 
-async def send_email(to: str, subject: str, text: str, html: str = "") -> bool:
-    """Returns True if the email was accepted by the SMTP server."""
+async def send_email(to: str, subject: str, text: str, html: str = "") -> tuple[bool, Optional[str]]:
+    """Returns (sent, error_reason). error_reason is None when sent is True."""
     if not emails_enabled():
         logger.info("Email skipped for %s (SMTP not configured).", to)
-        return False
+        return False, "SMTP is not configured on the server"
     try:
         await asyncio.to_thread(_send_sync, to, subject, text, html)
         logger.info("Email sent to %s: %s", to, subject)
-        return True
+        return True, None
     except Exception as exc:
-        logger.warning("Email send to %s failed: %s", to, exc)
-        return False
+        logger.error("Email send to %s failed: %s", to, exc)
+        return False, _safe_reason(exc)
 
 
 async def send_invite_email(
     to: str, link: str, inviter_name: str, calendar_name: str, role: str
-) -> bool:
+) -> tuple[bool, Optional[str]]:
     subject = f'{inviter_name} invited you to "{calendar_name}" on Orbit'
     text = (
         f'{inviter_name} invited you to collaborate on "{calendar_name}" as '

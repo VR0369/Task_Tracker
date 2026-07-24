@@ -45,7 +45,12 @@ export default function InvitePage() {
       {
         onSuccess: (res) => {
           reset({ email: '', role: 'contributor' })
-          setCreated({ link: res.link, email: v.email, email_sent: res.email_sent })
+          setCreated({
+            link: res.link,
+            email: v.email,
+            email_sent: res.email_sent,
+            email_error: res.email_error,
+          })
         },
       }
     )
@@ -246,6 +251,9 @@ export default function InvitePage() {
                   </>
                 )}
               </p>
+              {!created.email_sent && created.email_error && (
+                <p className="mt-1 text-xs text-red-500/90">{created.email_error}</p>
+              )}
             </div>
 
             <div className="rounded-xl border border-white/50 bg-white/50 p-2 dark:border-white/10 dark:bg-white/5">
